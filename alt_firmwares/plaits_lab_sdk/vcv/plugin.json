@@ -1,0 +1,23 @@
+{
+  "slug": "PlaitsLabAudition",
+  "name": "Plaits Lab Audition",
+  "version": "2.0.0",
+  "license": "MIT",
+  "brand": "Plaits Lab",
+  "author": "Matt Policastro",
+  "authorEmail": "",
+  "authorUrl": "",
+  "pluginUrl": "",
+  "manualUrl": "",
+  "sourceUrl": "",
+  "donateUrl": "",
+  "changelogUrl": "",
+  "modules": [
+    {
+      "slug": "PlaitsLabEngine",
+      "name": "Plaits Lab Engine",
+      "description": "One Plaits Lab package behind Plaits' controls and jacks, for auditioning without flashing hardware. The engine is chosen at build time.",
+      "tags": ["Oscillator", "Voice"]
+    }
+  ]
+}
