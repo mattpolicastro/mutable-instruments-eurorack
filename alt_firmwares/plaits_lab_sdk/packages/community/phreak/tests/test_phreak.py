@@ -146,12 +146,12 @@ class ToneTests(unittest.TestCase):
         return [aux[start:start + frames] for start in range(0, len(aux), frames)]
 
     def render_timeline(self, events, block_size=12, note=60):
-        """Sample-timed (HARMONICS, frames) events, with optional reset tokens."""
+        """Sample-timed (HARMONICS, frames), reset and trigger=STATE events."""
         output = self.directory / "timeline.f32"
         arguments = [f"note={note}"]
         frames = 0
         for event in events:
-            if event == "reset":
+            if isinstance(event, str):
                 arguments.append(event)
             else:
                 harmonics, count = event
@@ -258,6 +258,120 @@ class ToneTests(unittest.TestCase):
                 self.assert_bursts(channels, index)
                 reference, _ = self.render_bursts(index, 3, reference=True)
                 self.assert_reference(channels, reference)
+
+    def test_patched_idle_and_gate_length(self):
+        """phreak-articulation/patched-keypress-bursts/patched-idle-and-gate-length"""
+        idle = 7 * 48000
+        baseline = None
+        for block in (1, 7, 12, 24):
+            for gate in (48, 48000):
+                with self.subTest(block=block, gate=gate):
+                    channels = self.render_timeline([
+                        "trigger=low", (3 / 42, idle), "trigger=rise",
+                        (3 / 42, gate), "trigger=low", (3 / 42, 8 * 48000 - gate),
+                    ], block)
+                    self.assertEqual(channels[0], channels[1])
+                    for samples in channels:
+                        self.assertEqual(max(map(abs, samples[:idle])), 0)
+                        self.assertEqual(max(map(abs, samples[idle + 4800:])), 0)
+                    burst = channels[1][idle:idle + 24000]
+                    self.assert_bursts((burst,), 1)
+                    if baseline is None:
+                        baseline = burst
+                    # Falling at 1 ms, staying high for 1 s, and host block
+                    # partitioning must all produce identical burst samples.
+                    self.assertEqual(burst, baseline)
+
+    def test_retrigger_and_live_selection(self):
+        """phreak-articulation/patched-keypress-bursts/retrigger-and-live-selection"""
+        for edge in (24, 2400, 4704):  # Retrigger during attack, hold and release.
+            output = self.directory / "retrigger-reference.f32"
+            subprocess.run([str(self.driver), "retrigger-reference", str(edge), str(output)],
+                           check=True)
+            reference = self.read_aux(output, 24000)
+            for block in (1, 7, 12, 24):
+                with self.subTest(edge=edge, block=block):
+                    # Change to key 2 at 70 ms; hold high across all later
+                    # control blocks to detect accidental repeated edges.
+                    events = ["trigger=rise"]
+                    position = 0
+                    harmonics = 3 / 42
+                    for when, event in sorted(((edge, "trigger=rise"), (3360, "select"))):
+                        events.append((harmonics, when - position))
+                        if event == "select":
+                            harmonics = 5 / 42
+                        else:
+                            events.append(event)
+                        position = when
+                    events.append((harmonics, 24000 - position))
+                    channels = self.render_timeline(events, block)
+                    # Exact LPG oracle checks the preserved oscillator phase,
+                    # current-level reattack and 240-sample linear crossfade.
+                    self.assert_reference(channels, reference)
+                    for samples in channels:
+                        self.assertEqual(max(map(abs, samples[edge + 4800:])), 0)
+                        if edge == 2400:
+                            for start, end, frequencies in (
+                                (960, 3200, (697, 1209)), (3840, 6720, (697, 1336))):
+                                amplitudes, residual = sine_fit(samples[start:end], frequencies)
+                                self.assertTrue(all(0.20 < a < 0.26 for a in amplitudes))
+                                self.assertLess(residual, 0.001)
+                            threshold = 0.1 * rms(samples[960:3200])
+                            active = [n for n in range(0, 24000, 240)
+                                      if rms(samples[n:n + 240]) > threshold]
+                            self.assertEqual(active, list(range(0, active[-1] + 240, 240)))
+                            self.assertAlmostEqual((active[-1] + 240) / 48000, 0.150,
+                                                   delta=0.010)
+
+    def test_connection_transitions(self):
+        """phreak-articulation/patched-keypress-bursts/connection-transitions"""
+        for block in (1, 7, 12, 24):
+            # The normative half-second wait and a seven-second patched wait
+            # both restart the full ring cadence when the cable is removed.
+            for wait in (24000, 7 * 48000):
+                with self.subTest(block=block, wait=wait):
+                    channels = self.render_timeline([
+                        (29 / 42, 24000), "trigger=low", (29 / 42, wait),
+                        "trigger=unpatched", (29 / 42, 8 * 48000),
+                    ], block)
+                    self.assertEqual(channels[0], channels[1])
+                    for samples in channels:
+                        self.assert_tone(samples[960:20160], 14)
+                        self.assertLessEqual(max(map(abs, samples[24240:24000 + wait])), 1e-7)
+                        resumed = samples[24000 + wait:]
+                        self.assert_cadence(resumed, 2, 4)
+                        self.assert_tone(resumed[960:20160], 14)
+                        self.assert_tone(resumed[6 * 48000 + 960:6 * 48000 + 20160], 14)
+
+    def test_connection_transitions_discard_old_burst(self):
+        """phreak-articulation/patched-keypress-bursts/connection-transitions"""
+        for block in (1, 7, 12, 24):
+            channels = self.render_timeline([
+                "trigger=rise", (3 / 42, 2400), "trigger=unpatched", (3 / 42, 48),
+                "trigger=high", (3 / 42, 24000), "trigger=rise", (3 / 42, 24000),
+            ], block)
+            for samples in channels:
+                self.assertGreater(rms(samples[2448 - 24:2448]), 0.01)
+                self.assertEqual(max(map(abs, samples[2448:2448 + 24000])), 0)
+            self.assert_bursts(tuple(s[2448 + 24000:] for s in channels), 1)
+
+    def test_reset_clears_pending_burst_and_lpg_state(self):
+        """phreak-articulation/patched-keypress-bursts/retrigger-and-live-selection
+        phreak-articulation/patched-keypress-bursts/connection-transitions
+        """
+        for block in (1, 7, 12, 24):
+            for age in (24, 2400, 4704):
+                # Both voices and a pending selection are live at Reset, with
+                # the contour in attack, hold or release and nonempty LPGs.
+                prefix = ["trigger=rise", (3 / 42, age), (5 / 42, 7), (7 / 42, 7)]
+                for state in ("low", "high", "rise", "unpatched"):
+                    with self.subTest(block=block, age=age, state=state):
+                        replay = [f"trigger={state}", (29 / 42, 7200),
+                                  "trigger=rise", (3 / 42, 24000)]
+                        fresh = self.render_timeline(replay, block)
+                        reset = self.render_timeline(prefix + ["reset"] + replay, block)
+                        for samples, expected in zip(reset, fresh):
+                            self.assertEqual(samples[age + 14:], expected)
 
     def test_continuous_tone_classes(self):
         """phreak-articulation/unpatched-operation/continuous-tone-classes"""

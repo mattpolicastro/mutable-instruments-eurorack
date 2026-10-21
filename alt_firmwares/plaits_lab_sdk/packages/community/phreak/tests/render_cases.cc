@@ -43,6 +43,47 @@ bool RenderAudio(plaits::Engine& engine,
 // Host-only driver. Audio is interleaved native float MAIN/AUX at 48 kHz.
 int main(int argc, char** argv) {
   const plaits::phreak::TonePlan& plan = plaits::phreak::kNorthAmerica;
+  if (argc == 4 && std::strcmp(argv[1], "retrigger-reference") == 0) {
+    const int retrigger = std::atoi(argv[2]);
+    if (retrigger < 1 || retrigger >= 4800) return 1;
+    FILE* output = std::fopen(argv[3], "wb");
+    if (!output) return 1;
+    // Independent oracle: literal key-1/key-2 frequencies, a selection at
+    // 70 ms, and a second edge at the requested sample. No package helpers.
+    float phases[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
+    const float hz[4] = { 697.0f, 1209.0f, 697.0f, 1336.0f };
+    float level = 0.0f, start_level = 0.0f;
+    plaits::LowPassGate lpg;
+    lpg.Init();
+    for (int n = 0; n < 24000; ++n) {
+      for (int voice = 0; voice < (n < 3360 ? 2 : 4); ++voice) {
+        phases[voice] += hz[voice] / 48000.0f;
+        phases[voice] -= static_cast<int>(phases[voice]);
+      }
+      float sample = 0.25f * (plaits::Sine(phases[0]) + plaits::Sine(phases[1]));
+      if (n >= 3360) {
+        const float incoming = 0.25f
+            * (plaits::Sine(phases[2]) + plaits::Sine(phases[3]));
+        const float weight = n < 3600 ? (n - 3360) / 239.0f : 1.0f;
+        sample = (1.0f - weight) * sample + weight * incoming;
+      }
+      if (n == retrigger) start_level = level;
+      const int age = n < retrigger ? n : n - retrigger;
+      if (age < 4800) {
+        const float taper = age < 4608 ? 1.0f : (4800 - age) / 192.0f;
+        level = age < 48 ? start_level + (1.0f - start_level) * age / 48 : taper;
+        const float squared = level * level;
+        lpg.Process(level, 0.003f + 0.3f * squared * squared, 0.0f, &sample, 1);
+        sample *= taper;
+      } else {
+        sample = 0.0f;
+        lpg.Init();
+      }
+      const float channels[] = { sample, sample };
+      if (std::fwrite(channels, sizeof(float), 2, output) != 2) return 1;
+    }
+    return std::fclose(output) == 0 ? 0 : 1;
+  }
   if (argc == 6 && (std::strcmp(argv[1], "bursts") == 0
       || std::strcmp(argv[1], "lpg-reference") == 0)) {
     const int index = std::atoi(argv[2]);
@@ -148,10 +189,11 @@ int main(int argc, char** argv) {
     std::fprintf(stderr,
         "usage: %s table | index HARMONICS | HARMONICS SECONDS OUTPUT\n"
         "       %s steps SECONDS_PER_STEP OUTPUT HARMONICS [HARMONICS | reset ...]\n"
-        "       %s timeline BLOCK_SIZE OUTPUT [note=MIDI] HARMONICS FRAMES [HARMONICS FRAMES | reset ...]\n"
+        "       %s timeline BLOCK_SIZE OUTPUT [note=MIDI] [trigger=unpatched|low|high|rise] HARMONICS FRAMES [HARMONICS FRAMES | reset ...]\n"
         "       %s helper INDEX_OR_synthetic SECONDS OUTPUT\n"
-        "       %s bursts|lpg-reference INDEX SECONDS OUTPUT BLOCK_SIZE\n",
-        argv[0], argv[0], argv[0], argv[0], argv[0]);
+        "       %s bursts|lpg-reference INDEX SECONDS OUTPUT BLOCK_SIZE\n"
+        "       %s retrigger-reference EDGE_FRAME OUTPUT\n",
+        argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
     return 1;
   }
   const double seconds = std::atof(argv[2]);
@@ -172,6 +214,22 @@ int main(int argc, char** argv) {
   const int first = steps || timeline ? 4 : 1;
   const int last = steps || timeline ? argc : 2;
   for (int step = first; step < last; ++step) {
+    if ((steps || timeline) && std::strncmp(argv[step], "trigger=", 8) == 0) {
+      const char* state = argv[step] + 8;
+      if (std::strcmp(state, "unpatched") == 0) {
+        parameters.trigger = plaits::TRIGGER_UNPATCHED;
+      } else if (std::strcmp(state, "low") == 0) {
+        parameters.trigger = plaits::TRIGGER_LOW;
+      } else if (std::strcmp(state, "high") == 0) {
+        parameters.trigger = plaits::TRIGGER_HIGH;
+      } else if (std::strcmp(state, "rise") == 0) {
+        parameters.trigger = plaits::TRIGGER_RISING_EDGE | plaits::TRIGGER_HIGH;
+      } else {
+        std::fclose(output);
+        return 1;
+      }
+      continue;
+    }
     if ((steps || timeline) && std::strncmp(argv[step], "note=", 5) == 0) {
       parameters.note = static_cast<float>(std::atof(argv[step] + 5));
       continue;
@@ -198,6 +256,8 @@ int main(int argc, char** argv) {
       std::fclose(output);
       return 1;
     }
+    // A rising flag is a one-block event, including across control steps.
+    parameters.trigger &= ~plaits::TRIGGER_RISING_EDGE;
   }
   return std::fclose(output) == 0 ? 0 : 1;
 }

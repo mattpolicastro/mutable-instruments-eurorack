@@ -27,6 +27,7 @@ class PhreakEngine : public Engine {
   phreak::ToneVoice voices_[2];
   phreak::Keypress keypress_;
   bool initialized_;
+  bool patched_;
   size_t active_voice_;
   size_t active_index_;
   size_t incoming_index_;

@@ -34,8 +34,14 @@ Plaits LowPassGate instances process MAIN and AUX with gain `e`, cutoff
 removes filter residue; idle clears the LPGs. At TIMBRE 0 both channels match.
 Unpatched audio bypasses the LPGs. The engine always reports already-enveloped
 output, and the manifest declares that ownership with both output gains 1.0.
-Connection-transition refinements and their tests remain task 3.3; pitch
-transposition and bad-line treatment also remain subsequent tasks.
+Patched idle stays silent indefinitely. Gate length does not change the burst:
+only a rising edge restarts its 100 ms deadline, preserving oscillator phase
+and attacking from the current contour level. HARMONICS remains live through
+the usual 5 ms selection crossfade. Patching without an edge closes output
+immediately; unpatching restarts the selected entry's normal on phase. Both
+connection transitions discard the old burst and LPG history. Reset also clears
+that state, along with all voice, cadence and pending-selection state.
+Pitch transposition and bad-line treatment remain subsequent tasks.
 TIMBRE, MORPH and macro are currently inactive.
 
 From your eurorack checkout:
@@ -72,6 +78,15 @@ the shared LowPassGate primitive with literal contour times and frequencies;
 every float sample must match within 1e-6, including attack and closing cutoff.
 The key-5 reference also runs across all four partition sizes. Every engine
 render in the driver must report already-enveloped output.
+The timeline driver accepts `trigger=low`, `trigger=high`, `trigger=rise`, and
+`trigger=unpatched` tokens alongside sample-timed selections and `reset`.
+Connection tests cover seven-second patched waits, 1 ms and 1 s gates, ringback
+patch/unpatch cadence restarts, and clearing a burst across cable changes.
+Retrigger tests compare every sample against an independent LPG/crossfade
+reference, including edges during attack, hold and release, and the key-1 to
+key-2 change at 70 ms after retriggering at 50 ms. Reset with an active burst,
+two voices and a queued selection must reproduce a fresh engine in each trigger
+state. These cases also run with 1-, 7-, 12- and 24-sample partitions.
 Set `CXX` to choose the compiler. Shared repository headers use a trailing enum comma and are
 included with `-isystem`; strict C++98 diagnostics apply to package source.
 The shared resource translation unit is compiled separately because it uses a

@@ -15,6 +15,7 @@ void PhreakEngine::Reset() {
   voices_[1].Reset();
   keypress_.Reset();
   initialized_ = false;
+  patched_ = false;
   active_voice_ = 0;
   active_index_ = incoming_index_ = pending_index_ = 0;
   fade_sample_ = kCrossfadeSamples;
@@ -44,9 +45,23 @@ void PhreakEngine::Render(const EngineParameters& parameters, float* out,
   }
   *already_enveloped = true;
   const bool patched = !(parameters.trigger & TRIGGER_UNPATCHED);
-  if (!patched) {
+  if (patched != patched_) {
+    // Connection flags are authoritative, even after arbitrarily long idle.
+    // Discard the old burst/filter history on either connection transition.
+    // Patching without an edge therefore closes immediately.
     keypress_.Reset();
-  } else if (parameters.trigger & TRIGGER_RISING_EDGE) {
+    if (!patched) {
+      // Restart on phases without resetting oscillators or interrupting a
+      // selection fade. Both audible voices need a fresh cadence clock.
+      voices_[active_voice_].SetTone(plan.entries[active_index_]);
+      if (fade_sample_ < kCrossfadeSamples) {
+        voices_[1 - active_voice_].SetTone(plan.entries[incoming_index_]);
+      }
+    }
+    patched_ = patched;
+  }
+  if (patched && (parameters.trigger & TRIGGER_RISING_EDGE)) {
+    // HIGH/LOW alone neither restart nor shorten the keypress deadline.
     keypress_.Trigger();
   }
   for (size_t i = 0; i < size; ++i) {
