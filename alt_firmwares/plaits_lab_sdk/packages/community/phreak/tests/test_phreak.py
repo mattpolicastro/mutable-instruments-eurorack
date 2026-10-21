@@ -55,6 +55,26 @@ TONE_CASES = [
     ("phreak-tones/north-american-tone-table/fsk-mark", "fsk-mark", (1200,)),
 ]
 
+# Independent task 6.2 settings: seconds, MIDI note, trigger Hz, HARMONICS,
+# TIMBRE. Scalars must be repeated at both SDK range endpoints.
+ADDITIONAL_AUDITIONS = {
+    "keypress": (3, 60, 2, 11 / 42, 0),
+    "busy-keypress": (3, 60, 2, 27 / 42, 0),
+    "ring-keypress": (3, 60, 2, 29 / 42, 0),
+    "dial-low": (2, 48, 0, 1 / 42, 0),
+    "dial-high": (2, 72, 0, 1 / 42, 0),
+    "dtmf-high": (2, 72, 0, 11 / 42, 0),
+    "fsk-high": (2, 72, 0, 39 / 42, 0),
+    "band-low": (2, 24, 0, 41 / 42, 1 / 3),
+    "band-high": (2, 84, 0, 39 / 42, 1 / 3),
+    "band-pass": (2, 60, 0, 41 / 42, 1 / 3),
+    "saturated": (2, 60, 0, 41 / 42, 2 / 3),
+    "crushed": (2, 60, 0, 41 / 42, 1),
+    "bad-line-sweep": (6, 60, 0, 11 / 42, [0, 1]),
+    "bad-line-return": (6, 60, 0, 11 / 42, [1, 0]),
+    "selection-sweep": (21, 60, 0, [0, 1], 0),
+}
+
 
 def float32(value):
     """Round each operation as the engine's float control arithmetic does."""
@@ -1187,6 +1207,215 @@ class ToneTests(unittest.TestCase):
                             # and also rejects extra components above -40 dBc.
                             self.assert_tone(samples[start + 960:
                                                      start + round(on * 48000) - 960], index)
+
+    def render_declared_additional(self, id):
+        """Render the shipped JSON via the public SDK, preserving channel order."""
+        output = self.directory / (id + ".wav")
+        result = subprocess.run([
+            sys.executable, "-B", str(SDK_DIR / "plaits_lab.py"), "render",
+            str(PACKAGE), "--scenario", id, "--output", str(output),
+        ], cwd=REPO_ROOT, text=True, capture_output=True, check=False)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        frames = ADDITIONAL_AUDITIONS[id][0] * 48000
+        with wave.open(str(output), "rb") as audio:
+            self.assertEqual((audio.getnchannels(), audio.getsampwidth(),
+                              audio.getframerate(), audio.getnframes()),
+                             (2, 2, 48000, frames))
+            raw = audio.readframes(frames)
+        self.assertEqual(len(raw), frames * 4)
+        pcm = struct.unpack(f"<{frames * 2}h", raw)
+        # Undo WavWriter's 32767 gain for comparisons with float references.
+        channels = [array("f", (x / 32767 for x in pcm[ch::2])) for ch in (0, 1)]
+        for samples in channels:
+            self.assertGreater(rms(samples), 0.01)
+            self.assertLess(max(abs(x) for x in samples), 1)
+            self.assertLess(abs(sum(samples) / len(samples)), 0.01)
+        return channels
+
+    def assert_pcm_reference(self, samples, reference):
+        self.assertEqual(len(samples), len(reference))
+        self.assertLessEqual(max(abs(a - b) for a, b in zip(samples, reference)),
+                             1 / 32767)
+
+    def test_additional_audition_schema_and_settings(self):
+        """phreak-package/declared-audio-auditions/articulation-pitch-and-treatment-auditions"""
+        # Actual SDK schema rejects unsupported events/assertions and validates
+        # all four ranges, numeric limits, unique IDs and manifest linkage.
+        package = SDK.load_package(str(PACKAGE))
+        by_id = {s["id"]: s for s in package["scenarios"]}
+        notes = (PACKAGE / "AUDITION.md").read_text()
+        for id, (seconds, note, trigger, harmonics, timbre) in ADDITIONAL_AUDITIONS.items():
+            with self.subTest(scenario=id):
+                self.assertIn(id, by_id)
+                scenario = by_id[id]
+                self.assertEqual([scenario[k] for k in ("durationSeconds", "note", "triggerHz")],
+                                 [seconds, note, trigger])
+                for control, target in (("harmonics", harmonics), ("timbre", timbre),
+                                        ("morph", 0.5), ("macro", 0.5)):
+                    expected = target if isinstance(target, list) else [target, target]
+                    for actual, value in zip(scenario["controls"][control], expected):
+                        self.assertAlmostEqual(actual, value, delta=5e-10)
+                self.assertIn(f"| `{id}` |", notes)
+
+    def test_declared_keypress_and_pitch_auditions(self):
+        """phreak-package/declared-audio-auditions/articulation-pitch-and-treatment-auditions"""
+        for id, index in (("keypress", 5), ("busy-keypress", 13), ("ring-keypress", 14)):
+            with self.subTest(scenario=id):
+                channels = self.render_declared_additional(id)
+                self.assert_clean_channels(channels)
+                self.assert_bursts(channels, index)  # All six edges and silent gaps.
+                reference, _ = self.render_bursts(index, 3, reference=True)
+                for samples in channels:
+                    self.assert_pcm_reference(samples, reference)  # Opening/closing LPG.
+        for id, index, ratio in (("dial-low", 0, 0.5), ("dial-high", 0, 2),
+                                 ("dtmf-high", 5, 2), ("fsk-high", 19, 2)):
+            with self.subTest(scenario=id):
+                channels = self.render_declared_additional(id)
+                self.assert_clean_channels(channels)
+                for samples in channels:
+                    self.assert_cadence(samples, 2, 0)
+                    self.assert_tone(samples[960:], index, ratio)
+
+    def test_declared_static_treatment_auditions(self):
+        """phreak-package/declared-audio-auditions/articulation-pitch-and-treatment-auditions"""
+        band_pass = None
+        for id, index, ratio in (("band-low", 20, 0.125), ("band-high", 19, 4),
+                                 ("band-pass", 20, 1)):
+            with self.subTest(scenario=id):
+                main, aux = self.render_declared_additional(id)
+                self.assert_tone(aux[960:], index, ratio)
+                hz = TONE_CASES[index][2][0] * ratio
+                wet, residual = sine_fit(main[960:], (hz,))
+                dry, _ = sine_fit(aux[960:], (hz,))
+                gain = 20 * math.log10(wet[0] / dry[0])
+                if id == "band-pass":
+                    self.assertLess(abs(gain), 3)
+                    band_pass = (main, aux)
+                else:
+                    self.assertLessEqual(gain, -10)
+                self.assertLess(residual / (wet[0] / math.sqrt(2)), 0.01)
+        saturated, aux = self.render_declared_additional("saturated")
+        self.assertEqual(aux, band_pass[1])
+        self.assert_tone(aux[960:], 20)
+        filtered_harmonics, _ = sine_fit(band_pass[0][960:], (1200, 2400, 3600))
+        harmonics, _ = sine_fit(saturated[960:], (1200, 2400, 3600))
+        self.assertGreater(harmonics[0], 0.3)
+        self.assertLess(harmonics[1] / harmonics[0], 0.01)
+        self.assertGreaterEqual(20 * math.log10(
+            (harmonics[2] / harmonics[0]) /
+            max(filtered_harmonics[2] / filtered_harmonics[0], 1e-12)), 6)
+        self.assertTrue(all(len(set(saturated[n:n + 8])) > 1
+                            for n in range(960, len(saturated), 8)))
+        crushed, aux = self.render_declared_additional("crushed")
+        self.assertEqual(aux, band_pass[1])
+        self.assert_tone(aux[960:], 20)
+        self.assertLessEqual(max(abs(x - round(x * 31 / 2) * 2 / 31)
+                                 for x in crushed[960:]), 1 / 32767)
+        changes = [n for n in range(961, len(crushed)) if crushed[n] != crushed[n - 1]]
+        self.assertGreater(len(changes), 5000)
+        self.assertEqual({n % 8 for n in changes}, {0})
+        for n in range(960, len(crushed), 8):
+            self.assertEqual(len(set(crushed[n:n + 8])), 1)
+        images, _ = sine_fit(crushed[960:], (1200, 4800, 7200))
+        baseline, _ = sine_fit(saturated[960:], (1200, 4800, 7200))
+        for image, original in zip(images[1:], baseline[1:]):
+            self.assertGreater(image, 0.01)
+            self.assertGreater(image, 10 * original)
+
+    def test_declared_bad_line_sweeps(self):
+        """phreak-package/declared-audio-auditions/articulation-pitch-and-treatment-auditions"""
+        frames = 6 * 48000
+        filtered, clean = self.render_treatment([f"timbre={1 / 3}", (11 / 42, frames)])
+        for id, reverse in (("bad-line-sweep", False), ("bad-line-return", True)):
+            with self.subTest(scenario=id):
+                main, aux = self.render_declared_additional(id)
+                self.assert_pcm_reference(aux, clean)
+                for start in range(960, frames - 4800, 4800):
+                    self.assert_tone(aux[start:start + 4800], 5)
+                # Same analytical stage/5 ms ramp oracle as the direct sweep
+                # test, using the SDK's frame/(total_frames-1) control timebase.
+                mixes = [array("f"), array("f"), array("f")]
+                current, targets, starts, ages = [0.0] * 3, [0.0] * 3, [0.0] * 3, [240] * 3
+                for block in range(0, frames, 12):
+                    t = float32(block / (frames - 1))
+                    if reverse:
+                        t = float32(1 - t)
+                    for stage in range(3):
+                        target = max(0, min(1, float32(float32(3 * t) - stage)))
+                        if target != targets[stage]:
+                            starts[stage], targets[stage], ages[stage] = current[stage], target, 0
+                        for _ in range(12):
+                            ages[stage] = min(240, ages[stage] + 1)
+                            current[stage] = starts[stage] + (targets[stage] - starts[stage]) * ages[stage] / 240
+                            mixes[stage].append(current[stage])
+                # Two interior windows per stage detect reversed/missing stages
+                # and early reduction, without assuming a sweep is stationary.
+                for seconds in (0.5, 1.5, 2.5, 3.5, 4.5, 5.5):
+                    start = int(seconds * 48000)
+                    recovered_hold = []
+                    for n in range(start, start + 2400):
+                        band, saturation, reduction = (mix[n] for mix in mixes)
+                        x = clean[n] + band * (filtered[n] - clean[n])
+                        driven = (1 + 7 * saturation) * x
+                        x += saturation * (0.8 * driven / (1 + abs(driven)) - x)
+                        if reduction == 0:
+                            # Compare PCM codes: WavWriter truncates, while
+                            # this analytical model uses double arithmetic.
+                            self.assertLessEqual(abs(round(main[n] * 32767) - int(x * 32767)), 1)
+                        else:
+                            recovered_hold.append((main[n] - (1 - reduction) * x) / reduction)
+                    if recovered_hold:
+                        t = 1 - seconds / 6 if reverse else seconds / 6
+                        resolution = math.floor(7 * (3 * t - 2))
+                        step, hold = 2 / (2 ** (12 - resolution) - 1), 1 + resolution
+                        levels = [round(x / step) for x in recovered_hold]
+                        # Undoing the wet mix amplifies both PCM error and the
+                        # direct sweep oracle's 1e-5 float tolerance by 1/mix.
+                        tolerance = (1 / 32767 + 1e-5) / min(mixes[2][start:start + 2400])
+                        self.assertLess(max(abs(x - k * step) for x, k in
+                                            zip(recovered_hold, levels)), tolerance)
+                        changes = [n for n in range(1, len(levels)) if levels[n] != levels[n - 1]]
+                        self.assertGreater(len(changes), 100)
+                        self.assertEqual(len({n % hold for n in changes}), 1)
+
+    def test_declared_selection_sweep(self):
+        """phreak-package/declared-audio-auditions/articulation-pitch-and-treatment-auditions"""
+        channels = self.render_declared_additional("selection-sweep")
+        self.assert_clean_channels(channels)
+        frames = 21 * 48000
+        # First control block at/above each nominal boundary + 0.002. This
+        # distinguishes hysteresis from crossing at nominal integer seconds.
+        accepted = [0]
+        for index in range(1, 21):
+            threshold = float32(float32(index / 21) + float32(0.002))
+            accepted.append(next(n for n in range(index * 48000, (index + 1) * 48000, 12)
+                                 if float32(n / (frames - 1)) >= threshold))
+        accepted.append(frames)
+        voices = []
+        for index in range(21):
+            count = accepted[index + 1] - accepted[index] + (240 if index < 20 else 0)
+            voice = self.render_timeline([((index + 0.5) / 21, count)])[1]
+            voices.append(voice)
+            # Verify every entry by spectrum during its on phase, and cadence
+            # throughout its dwell. Ring stays on: its sweep dwell is only 1 s.
+            for samples in channels:
+                dwell = samples[accepted[index] + 960:accepted[index + 1]]
+                self.assert_tone(dwell[:9600], index)
+                if index == 13:
+                    self.assertLess(rms(dwell[24000 - 960:]), 1e-4)
+                else:
+                    self.assertTrue(all(rms(dwell[n:n + 480]) > 0.02
+                                        for n in range(0, len(dwell) - 479, 480)))
+        expected = array("f", voices[0][:accepted[1]])
+        for index in range(1, 21):
+            outgoing_age = accepted[index] - accepted[index - 1]
+            expected.extend(reference_fade(voices[index - 1][outgoing_age:outgoing_age + 240],
+                                           voices[index][:240]))
+            expected.extend(voices[index][240:accepted[index + 1] - accepted[index]])
+        for samples in channels:
+            # All samples include every 240-sample complementary linear fade,
+            # startup/cadence ramps, busy silence and incoming phase restart.
+            self.assert_pcm_reference(samples, expected)
 
     def test_all_centres_after_selection_changes(self):
         # The same 21 scenario IDs apply after upward and downward changes too.

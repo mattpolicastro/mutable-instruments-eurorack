@@ -296,5 +296,200 @@
       "morph": [0.5, 0.5],
       "macro": [0.5, 0.5]
     }
+  },
+  {
+    "id": "keypress",
+    "name": "Key 5 LPG keypresses",
+    "durationSeconds": 3,
+    "note": 60,
+    "triggerHz": 2,
+    "controls": {
+      "harmonics": [0.261904762, 0.261904762],
+      "timbre": [0, 0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "busy-keypress",
+    "name": "Busy LPG keypresses",
+    "durationSeconds": 3,
+    "note": 60,
+    "triggerHz": 2,
+    "controls": {
+      "harmonics": [0.642857143, 0.642857143],
+      "timbre": [0, 0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "ring-keypress",
+    "name": "Ringback LPG keypresses",
+    "durationSeconds": 3,
+    "note": 60,
+    "triggerHz": 2,
+    "controls": {
+      "harmonics": [0.690476190, 0.690476190],
+      "timbre": [0, 0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "dial-low",
+    "name": "Dial tone one octave down",
+    "durationSeconds": 2,
+    "note": 48,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.023809524, 0.023809524],
+      "timbre": [0, 0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "dial-high",
+    "name": "Dial tone one octave up",
+    "durationSeconds": 2,
+    "note": 72,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.023809524, 0.023809524],
+      "timbre": [0, 0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "dtmf-high",
+    "name": "Key 5 one octave up",
+    "durationSeconds": 2,
+    "note": 72,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.261904762, 0.261904762],
+      "timbre": [0, 0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "fsk-high",
+    "name": "FSK space one octave up",
+    "durationSeconds": 2,
+    "note": 72,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.928571429, 0.928571429],
+      "timbre": [0, 0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "band-low",
+    "name": "Telephone band low rejection",
+    "durationSeconds": 2,
+    "note": 24,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.976190476, 0.976190476],
+      "timbre": [0.333333333, 0.333333333],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "band-high",
+    "name": "Telephone band high rejection",
+    "durationSeconds": 2,
+    "note": 84,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.928571429, 0.928571429],
+      "timbre": [0.333333333, 0.333333333],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "band-pass",
+    "name": "Telephone band passband",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.976190476, 0.976190476],
+      "timbre": [0.333333333, 0.333333333],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "saturated",
+    "name": "Saturated FSK mark",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.976190476, 0.976190476],
+      "timbre": [0.666666667, 0.666666667],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "crushed",
+    "name": "Crushed FSK mark",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.976190476, 0.976190476],
+      "timbre": [1, 1],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "bad-line-sweep",
+    "name": "Bad-line treatment rising",
+    "durationSeconds": 6,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.261904762, 0.261904762],
+      "timbre": [0, 1],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "bad-line-return",
+    "name": "Bad-line treatment falling",
+    "durationSeconds": 6,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.261904762, 0.261904762],
+      "timbre": [1, 0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "selection-sweep",
+    "name": "All tones in selection order",
+    "durationSeconds": 21,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0, 1],
+      "timbre": [0, 0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
   }
 ]
