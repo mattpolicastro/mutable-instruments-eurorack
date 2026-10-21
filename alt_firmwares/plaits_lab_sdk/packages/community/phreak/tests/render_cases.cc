@@ -10,6 +10,13 @@
 // Host-only driver. Audio is interleaved native float MAIN/AUX at 48 kHz.
 int main(int argc, char** argv) {
   const plaits::phreak::TonePlan& plan = plaits::phreak::kNorthAmerica;
+  if (argc == 3 && std::strcmp(argv[1], "index") == 0) {
+    // Observe the selector without dereferencing a potentially invalid index.
+    const float harmonics = static_cast<float>(std::atof(argv[2]));
+    std::printf("%lu\n", static_cast<unsigned long>(
+        plaits::phreak::NominalToneIndex(plan, harmonics)));
+    return 0;
+  }
   if (argc == 2 && std::strcmp(argv[1], "table") == 0) {
     std::printf("%s %lu\n", plan.locale,
         static_cast<unsigned long>(plan.count));
@@ -23,7 +30,8 @@ int main(int argc, char** argv) {
     return 0;
   }
   if (argc != 4) {
-    std::fprintf(stderr, "usage: %s table | HARMONICS SECONDS OUTPUT\n", argv[0]);
+    std::fprintf(stderr,
+        "usage: %s table | index HARMONICS | HARMONICS SECONDS OUTPUT\n", argv[0]);
     return 1;
   }
   const double seconds = std::atof(argv[2]);

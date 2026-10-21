@@ -117,7 +117,9 @@ class ToneTests(unittest.TestCase):
         self.assertTrue(all(math.isfinite(x) and abs(x) <= 0.500001 for x in samples))
         return samples[1::2]
 
-    def test_north_american_table_and_engine_audio(self):
+    def test_north_american_table_metadata(self):
+        # Check labels/counts independently of rendering: an invalid count must
+        # fail an assertion, without relying on undefined out-of-bounds audio.
         rows = subprocess.check_output([str(self.driver), "table"], text=True).splitlines()
         self.assertEqual(rows.pop(0), "north-america 21")
         self.assertEqual(len(rows), 21)
@@ -130,6 +132,10 @@ class ToneTests(unittest.TestCase):
                                  frequencies if len(frequencies) == 2 else (*frequencies, 0))
                 cadence = {13: (0.5, 0.5), 14: (2, 4)}.get(index, (0, 0))
                 self.assertEqual(tuple(map(float, row[4:])), cadence)
+
+    def test_north_american_table_and_engine_audio(self):
+        for index, (scenario, label, frequencies) in enumerate(TONE_CASES):
+            with self.subTest(scenario=scenario, index=index):
                 duration = {13: 4, 14: 12}.get(index, 2)
                 aux = self.render((index + 0.5) / 21, duration)
                 # All entries are on here, including future busy/ring cadences.
@@ -141,6 +147,17 @@ class ToneTests(unittest.TestCase):
                 # Fitting exact reference Hz over 400 ms with this residual bound
                 # constrains tuning more tightly than 1 Hz and spurs below -40 dBc.
                 self.assertLess(residual / (min(amplitudes) / math.sqrt(2)), 0.01)
+
+    def test_nominal_selector_indices(self):
+        # Direct helper checks make endpoint failures deterministic even when a
+        # bad index would otherwise dereference beyond the production table.
+        cases = [(-0.1, 0), (0, 0), (1, 20), (1.1, 20)]
+        cases.extend(((index + 0.5) / 21, index) for index in range(21))
+        for harmonics, expected in cases:
+            with self.subTest(harmonics=harmonics):
+                actual = subprocess.check_output(
+                    [str(self.driver), "index", str(harmonics)], text=True)
+                self.assertEqual(int(actual), expected)
 
     def test_clamped_harmonics_endpoints(self):
         for value, centre in [(-0.1, 1 / 42), (0, 1 / 42), (1, 41 / 42), (1.1, 41 / 42)]:

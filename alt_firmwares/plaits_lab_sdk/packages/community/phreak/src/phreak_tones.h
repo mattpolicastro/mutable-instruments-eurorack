@@ -13,6 +13,8 @@ namespace phreak {
 struct ToneEntry {
   const char* label;
   size_t oscillator_count;
+  // All valid entries have at most two components; consumers use that count.
+  // mutation-equivalent: [3] adds an unused zero-initialized slot, only changing storage layout.
   float frequency_hz[2];
   // Both zero means continuous. Cadence playback is added separately.
   float on_seconds;
@@ -68,6 +70,8 @@ class ToneVoice {
   ToneVoice() { Reset(); }
   void Reset() {
     phase_[0] = phase_[1] = 0.0f;
+    // Reset disables Next's loop; SetTone writes every active increment before use.
+    // mutation-equivalent: assigning only increment_[1] leaves an unread slot until SetTone overwrites it.
     increment_[0] = increment_[1] = 0.0f;
     oscillator_count_ = 0;
     gain_ = 0.0f;
@@ -90,7 +94,10 @@ class ToneVoice {
   }
 
  private:
+  // Valid oscillator counts are 0 (reset), 1 or 2, so index 2 is never accessed.
+  // mutation-equivalent: [3] adds unused phase storage without changing synthesis.
   float phase_[2];
+  // mutation-equivalent: [3] adds unused increment storage; the same count bounds every access.
   float increment_[2];
   size_t oscillator_count_;
   float gain_;
