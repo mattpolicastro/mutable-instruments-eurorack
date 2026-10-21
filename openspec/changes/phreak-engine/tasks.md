@@ -26,7 +26,7 @@ the engine interface as selection and articulation land.
 ## 4. Pitch and outputs
 
 - [x] 4.1 Apply `SemitonesToRatio(note-60)` to active voice pairs and singles with the common high-frequency ceiling; add octave, FSK and extreme-note spectral checks and rerun cadence timebase cases at notes 48/72. Covers `phreak-pitch-outputs/common-pitch-ratio/octave-transposition`, `phreak-pitch-outputs/common-pitch-ratio/dtmf-and-fsk-transposition`, `phreak-pitch-outputs/common-pitch-ratio/high-pitch-ceiling-preserves-pairs`, `phreak-articulation/unpatched-operation/cadence-restart-and-timebase`.
-- [ ] 4.2 Establish the pre-treatment AUX split and separate MAIN path with identical articulation and unity manifest gains; add all-entry clean-channel equality and MORPH/macro-invariance tests. Covers `phreak-pitch-outputs/clean-and-processed-routing/clean-endpoint-equality`, `phreak-pitch-outputs/neutral-unused-controls/neutral-control-sweeps`.
+- [x] 4.2 Establish the pre-treatment AUX split and separate MAIN path with identical articulation and unity manifest gains; add all-entry clean-channel equality and MORPH/macro-invariance tests. Covers `phreak-pitch-outputs/clean-and-processed-routing/clean-endpoint-equality`, `phreak-pitch-outputs/neutral-unused-controls/neutral-control-sweeps`.
 
 ## 5. Distortion
 
