@@ -34,9 +34,11 @@ For the session managing Phreak. Matt approved this plan on 2026-10-21:
    `specloop publish` pushes to the source clone's `origin`, so this repointing is
    what sends the PR to the fork. Do not push `spec/phreak-engine` from the clone:
    the run's branch is ahead, and `publish` pushes the run's own head.
-3. **Create the labels:**
+3. **Create the labels:** all eight. The front door uses the spec labels, and
+   `nightshift/config.py` also defaults the `agent:*` workflow labels.
    ```sh
-   for l in spec:draft spec:review spec:approved agent:revise needs-human; do
+   for l in spec:draft spec:review spec:approved agent:revise needs-human \
+            agent:ready agent:working agent:done; do
      gh label create "$l" -R mattpolicastro/eurorack --force; done
    ```
 4. **Name the GitHub repo in the manifest.** Add `github = "mattpolicastro/eurorack"`
@@ -82,6 +84,11 @@ For the session managing Phreak. Matt approved this plan on 2026-10-21:
    front door" milestone that retiring the worker engine waits on.
 
 ## Caveats
+
+- **Comment filtering is in place (`85e79bf` in nightshift).** Only comments,
+  reviews and inline comments from OWNER, MEMBER or COLLABORATOR reach an agent,
+  and an issue opened by anyone else is escalated rather than drafted. That has
+  to be true before step 5 makes the PR public, and it is.
 
 - **Manifests stay off the fork.** The trusted manifest and checks must stay
   outside the fork; agents can read anything on disk, so never put a working
