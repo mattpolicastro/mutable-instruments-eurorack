@@ -69,14 +69,11 @@ For the session managing Phreak. Matt approved this plan on 2026-10-21:
    base = "telephone"
    ```
    The daemon overrides the template's change and branch for each issue.
-8. **Before resuming the daemon**, get Matt's explicit go-ahead. The daemon has been
-   paused since 2026-09-30 (`~/.nightshift/pause`), and removing the pause file is
-   his act.
-   - The live config also enrols `mattpolicastro/cartan` and
-     `mattpolicastro/hypno-director` on the old worker engine. Neither has an
-     `agent:ready` issue today, but a resume runs their startup reconciliation, and
-     Matt isn't using either. Ask whether to remove both entries first.
-   - Then run `uv run nightshift preflight`.
+8. **Check the daemon picks it up.** Since 2026-10-21 it is running, with only
+   `mattpolicastro/nightshift` enrolled. The old worker-engine repos have been
+   removed. After the `config.toml` edit, restart it:
+   `launchctl kickstart -k gui/$(id -u)/com.mattpolicastro.nightshift`. Then run
+   `uv run nightshift preflight` and `uv run nightshift status`.
 9. **First front-door test.** Open an issue on the fork, for example "Add a UK tone
    table (dial, busy, ring cadences)", and label it `spec:draft`. The daemon drafts
    a spec PR (`spec:review`); Matt reviews it and adds `spec:approved`; specloop
@@ -92,8 +89,8 @@ For the session managing Phreak. Matt approved this plan on 2026-10-21:
 
 - **Manifests stay off the fork.** The trusted manifest and checks must stay
   outside the fork; agents can read anything on disk, so never put a working
-  reference engine anywhere. When Nightshift itself goes public, per-project
-  manifests move to a private location; update `config.toml`'s path then.
+  reference engine anywhere. Nightshift is public now, and per-project manifests
+  stay where they are: `specloop/manifests/` is gitignored and never published.
 - **Who can label.** Nothing yet checks who applied a label. On a public repo only
   collaborators can apply labels, so this is fine unless Matt adds collaborators.
 - **One driver at a time.** The shared supervisor drives `phreak-engine`; don't also
