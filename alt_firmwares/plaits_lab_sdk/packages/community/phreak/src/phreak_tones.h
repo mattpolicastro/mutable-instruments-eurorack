@@ -57,12 +57,43 @@ const TonePlan kNorthAmerica = {
   sizeof(kNorthAmericanEntries) / sizeof(kNorthAmericanEntries[0])
 };
 
-// Plans must be nonempty. Positive integer conversion implements floor.
-inline size_t NominalToneIndex(const TonePlan& plan, float harmonics) {
-  if (!(harmonics > 0.0f)) return 0;
-  if (harmonics >= 1.0f) return plan.count - 1;
-  const size_t index = static_cast<size_t>(harmonics * plan.count);
-  return index < plan.count ? index : plan.count - 1;
+// Bell System R1 multi-frequency trunk signalling, the blue box's tones, in
+// the order a call used them: 2600 Hz seizes the trunk, KP, digits, ST.
+const ToneEntry kBlueBoxEntries[] = {
+  { "seize",     1, { 2600.0f,   0.0f }, 0.0f, 0.0f },
+  { "kp",        2, { 1100.0f, 1700.0f }, 0.0f, 0.0f },
+  { "mf-1",      2, {  700.0f,  900.0f }, 0.0f, 0.0f },
+  { "mf-2",      2, {  700.0f, 1100.0f }, 0.0f, 0.0f },
+  { "mf-3",      2, {  900.0f, 1100.0f }, 0.0f, 0.0f },
+  { "mf-4",      2, {  700.0f, 1300.0f }, 0.0f, 0.0f },
+  { "mf-5",      2, {  900.0f, 1300.0f }, 0.0f, 0.0f },
+  { "mf-6",      2, { 1100.0f, 1300.0f }, 0.0f, 0.0f },
+  { "mf-7",      2, {  700.0f, 1500.0f }, 0.0f, 0.0f },
+  { "mf-8",      2, {  900.0f, 1500.0f }, 0.0f, 0.0f },
+  { "mf-9",      2, { 1100.0f, 1500.0f }, 0.0f, 0.0f },
+  { "mf-0",      2, { 1300.0f, 1500.0f }, 0.0f, 0.0f },
+  { "st",        2, { 1500.0f, 1700.0f }, 0.0f, 0.0f }
+};
+
+const TonePlan kBlueBox = {
+  "blue-box", kBlueBoxEntries,
+  sizeof(kBlueBoxEntries) / sizeof(kBlueBoxEntries[0])
+};
+
+// HARMONICS selects one of these systems; MORPH a tone within it.
+const TonePlan* const kPlans[] = { &kNorthAmerica, &kBlueBox };
+const size_t kNumPlans = sizeof(kPlans) / sizeof(kPlans[0]);
+
+// Counts must be nonzero. Positive integer conversion implements floor.
+inline size_t NominalIndex(size_t count, float value) {
+  if (!(value > 0.0f)) return 0;
+  if (value >= 1.0f) return count - 1;
+  const size_t index = static_cast<size_t>(value * count);
+  return index < count ? index : count - 1;
+}
+
+inline size_t NominalToneIndex(const TonePlan& plan, float value) {
+  return NominalIndex(plan.count, value);
 }
 
 // Retain the latest accepted request independently of oscillator state.
@@ -74,17 +105,20 @@ class ToneSelector {
     initialized_ = false;
     index_ = 0;
   }
-  size_t Process(const TonePlan& plan, float harmonics) {
-    if (!(harmonics > 0.0f)) harmonics = 0.0f;
-    if (harmonics > 1.0f) harmonics = 1.0f;
+  size_t Process(const TonePlan& plan, float value) {
+    return Process(plan.count, value);
+  }
+  size_t Process(size_t count, float value) {
+    if (!(value > 0.0f)) value = 0.0f;
+    if (value > 1.0f) value = 1.0f;
     const float margin = 0.002f;
     if (!initialized_
-        || (index_ + 1 < plan.count
-            && harmonics >= static_cast<float>(index_ + 1) / plan.count + margin)
+        || (index_ + 1 < count
+            && value >= static_cast<float>(index_ + 1) / count + margin)
         || (index_ > 0
-            && harmonics < static_cast<float>(index_) / plan.count - margin)) {
+            && value < static_cast<float>(index_) / count - margin)) {
       // Jump directly to the nominal zone, even across multiple entries.
-      index_ = NominalToneIndex(plan, harmonics);
+      index_ = NominalIndex(count, value);
       initialized_ = true;
     }
     return index_;
@@ -107,7 +141,15 @@ class ToneVoice {
     increment_[0] = increment_[1] = 0.0f;
     oscillator_count_ = 0;
     gain_ = 0.0f;
+    weight_[0] = weight_[1] = 1.0f;
     cadence_.Reset();
+  }
+  // MACRO: twist, the balance of a pair's low and high tones. Balanced at
+  // noon; one tone alone at either end, at the single-tone level.
+  void set_twist(float macro) {
+    CONSTRAIN(macro, 0.0f, 1.0f);
+    weight_[0] = macro > 0.5f ? 2.0f * (1.0f - macro) : 1.0f;
+    weight_[1] = macro < 0.5f ? 2.0f * macro : 1.0f;
   }
   void SetTone(const ToneEntry& entry) {
     cadence_.Reset(entry.on_seconds, entry.off_seconds);
@@ -132,11 +174,15 @@ class ToneVoice {
     for (size_t i = 0; i < oscillator_count_; ++i) {
       phase_[i] += increment_[i] * pitch_ratio;
       phase_[i] -= static_cast<int>(phase_[i]);
-      sample += Sine(phase_[i]);
+      sample += Sine(phase_[i]) * (oscillator_count_ == 2 ? weight_[i] : 1.0f);
     }
+    // A pair's weights sum to between 1 and 2; keep the total amplitude at the
+    // pair's when balanced and at the single-tone level when alone.
+    const float gain = oscillator_count_ == 2
+        ? 0.5f / (weight_[0] + weight_[1]) : gain_;
     // Advance phases even while cadence is silent.
     const float cadence = cadence_.Next();
-    return gain_ * sample * (patched ? 1.0f : cadence);
+    return gain * sample * (patched ? 1.0f : cadence);
   }
 
  private:
@@ -147,6 +193,7 @@ class ToneVoice {
   float increment_[2];
   size_t oscillator_count_;
   float gain_;
+  float weight_[2];
   Cadence cadence_;
 };
 

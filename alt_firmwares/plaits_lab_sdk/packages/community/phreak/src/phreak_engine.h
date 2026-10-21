@@ -22,19 +22,21 @@ class PhreakEngine : public Engine {
 
  private:
   enum { kCrossfadeSamples = 240 };
-  void StartFade(const phreak::TonePlan& plan, size_t index);
+  void StartFade(const phreak::ToneEntry* entry);
   float LimitPitchRatio(float ratio) const;
 
+  phreak::ToneSelector system_selector_;
   phreak::ToneSelector selector_;
   phreak::ToneVoice voices_[2];
   phreak::Keypress keypress_;
   phreak::BadLine bad_line_;
   bool initialized_;
   bool patched_;
+  size_t system_;
   size_t active_voice_;
-  size_t active_index_;
-  size_t incoming_index_;
-  size_t pending_index_;
+  const phreak::ToneEntry* active_entry_;
+  const phreak::ToneEntry* incoming_entry_;
+  const phreak::ToneEntry* pending_entry_;
   // kCrossfadeSamples means idle; otherwise this is the next fade sample.
   size_t fade_sample_;
   DISALLOW_COPY_AND_ASSIGN(PhreakEngine);

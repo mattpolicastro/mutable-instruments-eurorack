@@ -1,6 +1,6 @@
 {
-  "slug": "PlaitsLabAudition",
-  "name": "Plaits Lab Audition",
+  "slug": "PlaitsLabAuditionV2Proto",
+  "name": "Plaits Lab Audition (v2 prototype)",
   "version": "2.0.0",
   "license": "MIT",
   "brand": "Plaits Lab",
@@ -17,7 +17,10 @@
       "slug": "PlaitsLabEngine",
       "name": "Plaits Lab Engine",
       "description": "One Plaits Lab package behind Plaits' controls and jacks, for auditioning without flashing hardware. The engine is chosen at build time.",
-      "tags": ["Oscillator", "Voice"]
+      "tags": [
+        "Oscillator",
+        "Voice"
+      ]
     }
   ]
 }

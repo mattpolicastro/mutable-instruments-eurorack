@@ -53,15 +53,24 @@ class BadLine {
     bits_ = 12;
   }
 
+  // Clean at noon, with a small dead zone for knob jitter. Counter-clockwise
+  // is an analog line (telephone band, then saturation); clockwise a digital
+  // one (telephone band, then bit and sample-rate reduction).
   void SetTimbre(float timbre) {
     CONSTRAIN(timbre, 0.0f, 1.0f);
-    const float target = timbre < 1.0f / 3.0f ? 3.0f * timbre : 1.0f;
+    const float kDeadZone = 0.02f;
+    float analog = (0.5f - kDeadZone - timbre) / (0.5f - kDeadZone);
+    float digital = (timbre - 0.5f - kDeadZone) / (0.5f - kDeadZone);
+    CONSTRAIN(analog, 0.0f, 1.0f);
+    CONSTRAIN(digital, 0.0f, 1.0f);
+    float target = analog > 0.0f ? 2.0f * analog : 3.0f * digital;
+    CONSTRAIN(target, 0.0f, 1.0f);
     if (target != target_mix_) {
       target_mix_ = target;
       remaining_ = kTransitionSamples;
       mix_step_ = (target_mix_ - mix_) / kTransitionSamples;
     }
-    float saturation = 3.0f * timbre - 1.0f;
+    float saturation = 2.0f * analog - 1.0f;
     CONSTRAIN(saturation, 0.0f, 1.0f);
     if (saturation != saturation_target_) {
       saturation_target_ = saturation;
@@ -70,7 +79,7 @@ class BadLine {
       saturation_step_ = (saturation_target_ - saturation_mix_)
           / kTransitionSamples;
     }
-    float reduction = 3.0f * timbre - 2.0f;
+    float reduction = (3.0f * digital - 1.0f) / 2.0f;
     CONSTRAIN(reduction, 0.0f, 1.0f);
     if (reduction != reduction_target_) {
       reduction_target_ = reduction;
