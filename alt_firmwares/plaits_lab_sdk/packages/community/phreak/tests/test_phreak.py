@@ -5,6 +5,7 @@
 
 import importlib.util
 from array import array
+from decimal import Decimal
 import json
 import math
 import os
@@ -15,6 +16,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import wave
 
 
 PACKAGE = Path(__file__).resolve().parents[1]
@@ -1118,6 +1120,73 @@ class ToneTests(unittest.TestCase):
                 # Fitting exact reference Hz over 400 ms with this residual bound
                 # constrains tuning more tightly than 1 Hz and spurs below -40 dBc.
                 self.assert_tone(aux[960:20160], index)
+
+    def test_declared_fixed_entry_auditions(self):
+        """phreak-package/declared-audio-auditions/every-entry-can-be-auditioned"""
+        manifest = json.loads((PACKAGE / "plaits-engine.json").read_text())
+        # Decimal preserves trailing zeros: 0.500000000 must not silently
+        # become 0.5 before checking the serialized centre precision.
+        scenarios = json.loads((PACKAGE / manifest["scenarios"]).read_text(),
+                               parse_float=Decimal)
+        by_id = {scenario["id"]: scenario for scenario in scenarios}
+        self.assertEqual(len(by_id), len(scenarios))
+        ids = ["tone-" + {"fsk-space": "fsk-0", "fsk-mark": "fsk-1"}.get(label, label)
+               for _, label, _ in TONE_CASES]
+        self.assertEqual({id for id in by_id if id.startswith("tone-")}, set(ids))
+
+        for index, id in enumerate(ids):
+            with self.subTest(scenario=id):
+                scenario = by_id[id]
+                duration = {13: 4, 14: 12}.get(index, 2)
+                self.assertEqual(set(scenario), {
+                    "id", "name", "durationSeconds", "note", "triggerHz", "controls",
+                })
+                self.assertEqual(scenario["durationSeconds"], duration)
+                self.assertEqual(scenario["note"], 60)
+                self.assertEqual(scenario["triggerHz"], 0)
+                controls = scenario["controls"]
+                self.assertEqual(set(controls), {"harmonics", "timbre", "morph", "macro"})
+                self.assertEqual(len(controls["harmonics"]), 2)
+                self.assertEqual(*controls["harmonics"])
+                for centre in controls["harmonics"]:
+                    self.assertRegex(str(centre), r"^0\.\d{9,}$")
+                    self.assertLessEqual(abs(centre - Decimal(2 * index + 1) / 42),
+                                         Decimal("0.0000000005"))
+                for control, value in (("timbre", 0), ("morph", 0.5), ("macro", 0.5)):
+                    self.assertEqual(controls[control], [value, value])
+
+                # Exercise the public command and its actual declared settings,
+                # rather than substituting independently constructed controls.
+                output = self.directory / (id + ".wav")
+                result = subprocess.run([
+                    sys.executable, "-B", str(SDK_DIR / "plaits_lab.py"), "render",
+                    str(PACKAGE), "--scenario", id, "--output", str(output),
+                ], cwd=REPO_ROOT, text=True, capture_output=True, check=False)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                with wave.open(str(output), "rb") as audio:
+                    self.assertEqual(audio.getnchannels(), 2)
+                    self.assertEqual(audio.getsampwidth(), 2)
+                    self.assertEqual(audio.getframerate(), 48000)
+                    frames = duration * 48000
+                    self.assertEqual(audio.getnframes(), frames)
+                    raw = audio.readframes(frames)
+                self.assertEqual(len(raw), frames * 4)
+                pcm = struct.unpack(f"<{frames * 2}h", raw)
+                channels = [[value / 32768 for value in pcm[channel::2]]
+                            for channel in (0, 1)]
+                self.assert_clean_channels(channels)
+                on, off = {13: (0.5, 0.5), 14: (2, 4)}.get(index, (duration, 0))
+                for channel, samples in zip(("MAIN", "AUX"), channels):
+                    with self.subTest(channel=channel):
+                        # Zero off-time also checks every 10 ms window of the
+                        # continuous entries, including both single-tone FSKs.
+                        self.assert_cadence(samples, on, off)
+                        for start in range(0, frames, round((on + off) * 48000)):
+                            # Exclude edges, fit every on interval at exact Hz.
+                            # The existing residual bound is tighter than 1 Hz
+                            # and also rejects extra components above -40 dBc.
+                            self.assert_tone(samples[start + 960:
+                                                     start + round(on * 48000) - 960], index)
 
     def test_all_centres_after_selection_changes(self):
         # The same 21 scenario IDs apply after upward and downward changes too.

@@ -23,5 +23,278 @@
         0.5
       ]
     }
+  },
+  {
+    "id": "tone-dial",
+    "name": "Dial tone",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.023809524, 0.023809524],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-key-1",
+    "name": "Key 1",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.071428571, 0.071428571],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-key-2",
+    "name": "Key 2",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.119047619, 0.119047619],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-key-3",
+    "name": "Key 3",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.166666667, 0.166666667],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-key-4",
+    "name": "Key 4",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.214285714, 0.214285714],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-key-5",
+    "name": "Key 5",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.261904762, 0.261904762],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-key-6",
+    "name": "Key 6",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.309523810, 0.309523810],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-key-7",
+    "name": "Key 7",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.357142857, 0.357142857],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-key-8",
+    "name": "Key 8",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.404761905, 0.404761905],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-key-9",
+    "name": "Key 9",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.452380952, 0.452380952],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-key-0",
+    "name": "Key 0",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.500000000, 0.500000000],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-hash",
+    "name": "Hash key",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.547619048, 0.547619048],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-star",
+    "name": "Star key",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.595238095, 0.595238095],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-busy",
+    "name": "Busy tone",
+    "durationSeconds": 4,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.642857143, 0.642857143],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-ring",
+    "name": "Ringback tone",
+    "durationSeconds": 12,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.690476190, 0.690476190],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-key-a",
+    "name": "Key A",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.738095238, 0.738095238],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-key-b",
+    "name": "Key B",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.785714286, 0.785714286],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-key-c",
+    "name": "Key C",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.833333333, 0.833333333],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-key-d",
+    "name": "Key D",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.880952381, 0.880952381],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-fsk-0",
+    "name": "FSK space (2200 Hz)",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.928571429, 0.928571429],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
+  },
+  {
+    "id": "tone-fsk-1",
+    "name": "FSK mark (1200 Hz)",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [0.976190476, 0.976190476],
+      "timbre": [0.0, 0.0],
+      "morph": [0.5, 0.5],
+      "macro": [0.5, 0.5]
+    }
   }
 ]
