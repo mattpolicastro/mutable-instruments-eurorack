@@ -16,6 +16,7 @@ void PhreakEngine::Reset() {
   voices_[0].Reset();
   voices_[1].Reset();
   keypress_.Reset();
+  bad_line_.Reset();
   initialized_ = false;
   patched_ = false;
   active_voice_ = 0;
@@ -83,6 +84,7 @@ void PhreakEngine::Render(const EngineParameters& parameters, float* out,
   }
   const float requested_ratio = stmlib::SemitonesToRatio(parameters.note - 60.0f);
   float pitch_ratio = LimitPitchRatio(requested_ratio);
+  bad_line_.SetTimbre(parameters.timbre);
   for (size_t i = 0; i < size; ++i) {
     float sample = voices_[active_voice_].Next(patched, pitch_ratio);
     if (fade_sample_ < kCrossfadeSamples) {
@@ -103,10 +105,9 @@ void PhreakEngine::Render(const EngineParameters& parameters, float* out,
       }
     }
     // Split after cadence/selection mixing, before any MAIN-only treatment.
-    // MAIN is still a bypass until the bad-line stages are implemented.
     // MORPH and macro deliberately do not participate in either path.
     float clean = sample;
-    float main = sample;
+    float main = bad_line_.Process(sample);
     // Independent LPG histories share one contour, downstream of the split.
     if (patched) keypress_.Process(&main, &clean);
     out[i] = main;

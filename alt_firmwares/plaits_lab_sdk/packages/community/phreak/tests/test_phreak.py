@@ -146,7 +146,7 @@ class ToneTests(unittest.TestCase):
         aux = self.read_aux(output, count * frames)
         return [aux[start:start + frames] for start in range(0, len(aux), frames)]
 
-    def render_timeline(self, events, block_size=12, note=60):
+    def render_timeline(self, events, block_size=12, note=60, main_peak=0.500001):
         """Sample-timed (HARMONICS, frames), reset and trigger=STATE events."""
         output = self.directory / "timeline.f32"
         arguments = [f"note={note}"]
@@ -160,13 +160,14 @@ class ToneTests(unittest.TestCase):
                 frames += count
         subprocess.run([str(self.driver), "timeline", str(block_size), str(output),
                         *arguments], check=True)
-        return self.read_channels(output, frames)
+        return self.read_channels(output, frames, main_peak)
 
-    def read_channels(self, output, frames):
+    def read_channels(self, output, frames, main_peak=0.500001):
         samples = array("f")
         samples.frombytes(output.read_bytes())
         self.assertEqual(len(samples), 2 * frames)
-        self.assertTrue(all(math.isfinite(x) and abs(x) <= 0.500001 for x in samples))
+        self.assertTrue(all(math.isfinite(x) and abs(x) <= main_peak for x in samples[0::2]))
+        self.assertTrue(all(math.isfinite(x) and abs(x) <= 0.500001 for x in samples[1::2]))
         return samples[0::2], samples[1::2]
 
     def read_aux(self, output, frames):
@@ -192,6 +193,127 @@ class ToneTests(unittest.TestCase):
         main, aux = channels
         self.assertGreater(rms(aux), 0.01)  # Silence cannot satisfy this gate.
         self.assertLessEqual(max(abs(m - a) for m, a in zip(main, aux)), 1e-6)
+
+    def render_treatment(self, events, **kwargs):
+        # Filter onset can overshoot the oscillator's 0.5 peak. The bad-line
+        # contract permits MAIN up to full scale; AUX and all pre-existing
+        # callers keep the original 0.500001 bound.
+        return self.render_timeline(events, main_peak=1.0, **kwargs)
+
+    def test_bad_line_true_clean_endpoint(self):
+        """phreak-bad-line/clean-endpoint-and-band-limitation/true-clean-endpoint"""
+        h = 41 / 42
+        clean = self.render_treatment([(h, 192000)])
+        recovered = self.render_treatment([
+            "timbre=1", (h, 96000), "timbre=0", (h, 96000),
+        ])
+        # Treatment must actually have run before testing recovery, and AUX
+        # must match the untreated reference for the entire control history.
+        self.assertGreater(rms([m - a for m, a in
+                                zip(recovered[0][960:96000], recovered[1][960:96000])]),
+                           0.05)
+        self.assertEqual(recovered[1], clean[1])
+        for label, channels in (("reset", [x[:96000] for x in clean]),
+                                ("recovery", [x[96000:] for x in recovered])):
+            with self.subTest(history=label):
+                steady = [x[960:] for x in channels]
+                self.assert_clean_channels(steady)
+                # Total non-sine residual rejects colour, quantization, holds,
+                # extra oscillators and harmonics, not just a few selected bins.
+                for samples in steady:
+                    self.assert_tone(samples, 20)
+
+        # Reset must discard treatment mix/filter history as well as voices.
+        for timbre in (0, 1 / 3):
+            with self.subTest(reset_timbre=timbre):
+                fresh = self.render_treatment([f"timbre={timbre}", (h, 96000)])
+                reset = self.render_treatment([
+                    "timbre=1", (h, 4813), "reset",
+                    f"timbre={timbre}", (h, 96000),
+                ])
+                for actual, expected in zip(reset, fresh):
+                    self.assertEqual(actual[4813:], expected)
+
+    def test_bad_line_telephone_bandpass(self):
+        """phreak-bad-line/clean-endpoint-and-band-limitation/telephone-band-pass"""
+        for index, note, hz in ((20, 24, 150), (20, 60, 1200), (19, 84, 8800)):
+            with self.subTest(hz=hz):
+                h = (index + 0.5) / 21
+                main, aux = self.render_treatment([
+                    f"timbre={1 / 3}", (h, 96000),
+                ], note=note)
+                clean = self.render_treatment([(h, 96000)], note=note)
+                self.assertEqual(aux, clean[1])
+                self.assert_tone(aux[960:], index, 2 ** ((note - 60) / 12))
+                wet_amplitude, residual = sine_fit(main[960:], (hz,))
+                dry_amplitude, _ = sine_fit(aux[960:], (hz,))
+                gain_db = 20 * math.log10(wet_amplitude[0] / dry_amplitude[0])
+                if hz == 1200:
+                    self.assertGreater(gain_db, -3)
+                    self.assertLessEqual(gain_db, 0.1)
+                else:
+                    self.assertLessEqual(gain_db, -10)
+                self.assertLess(residual / (wet_amplitude[0] / math.sqrt(2)), 0.01)
+
+    def test_bad_line_helper_cutoffs(self):
+        """phreak-bad-line/clean-endpoint-and-band-limitation/telephone-band-pass"""
+        # Independent helper sine sweep: locate BOTH edges relative to the
+        # measured peak, rather than assuming unity gain or testing constants.
+        frequencies = list(range(100, 5001, 20))
+        output = self.directory / "bandpass.f32"
+        subprocess.run([str(self.driver), "bandpass", str(output),
+                        *map(str, frequencies)], check=True)
+        wet, dry = self.read_channels(output, len(frequencies) * 12000)
+        gains = []
+        for i in range(len(frequencies)):
+            # 50 ms settle, then 200 ms containing whole sine periods.
+            start, end = i * 12000 + 2400, (i + 1) * 12000
+            gains.append(20 * math.log10(rms(wet[start:end]) / rms(dry[start:end])))
+        peak = max(gains)
+        self.assertGreater(peak, -0.2)
+        threshold = peak - 3
+        crossings = []
+        for i in range(1, len(gains)):
+            a, b = gains[i - 1], gains[i]
+            if (a < threshold) != (b < threshold):
+                fraction = (threshold - a) / (b - a)
+                crossings.append(frequencies[i - 1] + 20 * fraction)
+        self.assertEqual(len(crossings), 2)
+        self.assertAlmostEqual(crossings[0], 300, delta=30)
+        self.assertAlmostEqual(crossings[1], 3400, delta=340)
+
+    def test_bad_line_progressive_mix_and_bypass_ramp(self):
+        """phreak-bad-line/clean-endpoint-and-band-limitation/true-clean-endpoint
+        phreak-bad-line/clean-endpoint-and-band-limitation/telephone-band-pass
+        """
+        h = 41 / 42
+        wet, dry = self.render_treatment([f"timbre={1 / 3}", (h, 9600)])
+        for timbre in (1 / 12, 1 / 6, 1 / 4):
+            with self.subTest(timbre=timbre):
+                main, aux = self.render_treatment([f"timbre={timbre}", (h, 9600)])
+                self.assertEqual(aux, dry)
+                expected = [d + 3 * timbre * (w - d)
+                            for w, d in zip(wet[960:], dry[960:])]
+                self.assertLessEqual(max(abs(m - e) for m, e in
+                                         zip(main[960:], expected)), 1e-6)
+        for block in (1, 7, 12, 24):
+            with self.subTest(block=block):
+                main, aux = self.render_treatment([
+                    f"timbre={1 / 3}", (h, 4800), "timbre=0", (h, 4800),
+                ], block_size=block)
+                self.assertEqual(aux, dry)
+                expected = [d + (1 - (i + 1) / 240) * (w - d)
+                            for i, (w, d) in enumerate(zip(
+                                wet[4800:5040], dry[4800:5040]))]
+                self.assertLessEqual(max(abs(m - e) for m, e in
+                                         zip(main[4800:5040], expected)), 1e-6)
+                self.assertEqual(main[5040:], aux[5040:])
+        # Clamp out-of-range controls before computing the band-pass mix.
+        maximum, _ = self.render_treatment(["timbre=1", (h, 9600)])
+        for timbre, expected in ((-1, dry), (2, maximum)):
+            main, aux = self.render_treatment([f"timbre={timbre}", (h, 9600)])
+            self.assertEqual(main, expected)
+            self.assertEqual(aux, dry)
 
     def test_all_entry_clean_channel_equality(self):
         """phreak-pitch-outputs/clean-and-processed-routing/clean-endpoint-equality"""

@@ -5,6 +5,7 @@
 #define PLAITS_LAB_PHREAK_ENGINE_H_
 
 #include "plaits/dsp/engine/engine.h"
+#include "phreak_bad_line.h"
 #include "phreak_tones.h"
 
 namespace plaits {
@@ -27,6 +28,7 @@ class PhreakEngine : public Engine {
   phreak::ToneSelector selector_;
   phreak::ToneVoice voices_[2];
   phreak::Keypress keypress_;
+  phreak::BadLine bad_line_;
   bool initialized_;
   bool patched_;
   size_t active_voice_;

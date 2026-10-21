@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <cmath>
 
 #include "phreak_engine.h"
 
@@ -43,6 +44,24 @@ bool RenderAudio(plaits::Engine& engine,
 // Host-only driver. Audio is interleaved native float MAIN/AUX at 48 kHz.
 int main(int argc, char** argv) {
   const plaits::phreak::TonePlan& plan = plaits::phreak::kNorthAmerica;
+  if (argc >= 4 && std::strcmp(argv[1], "bandpass") == 0) {
+    FILE* output = std::fopen(argv[2], "wb");
+    if (!output) return 1;
+    for (int tone = 3; tone < argc; ++tone) {
+      const double hz = std::atof(argv[tone]);
+      if (!(hz > 0.0 && hz < 24000.0)) return 1;
+      plaits::phreak::BadLine line;
+      line.SetTimbre(1.0f / 3.0f);
+      // Independent host sine source, not the engine's pitch/tone helpers.
+      for (int n = 0; n < 12000; ++n) {
+        const float dry = static_cast<float>(
+            0.25 * std::sin(2.0 * 3.141592653589793 * hz * n / 48000.0));
+        const float samples[] = { line.Process(dry), dry };
+        if (std::fwrite(samples, sizeof(float), 2, output) != 2) return 1;
+      }
+    }
+    return std::fclose(output) == 0 ? 0 : 1;
+  }
   if (argc == 5 && std::strcmp(argv[1], "neutral") == 0) {
     const bool morph = std::strcmp(argv[2], "morph") == 0;
     const bool macro = std::strcmp(argv[2], "macro") == 0;
@@ -222,12 +241,13 @@ int main(int argc, char** argv) {
     std::fprintf(stderr,
         "usage: %s table | index HARMONICS | HARMONICS SECONDS OUTPUT\n"
         "       %s steps SECONDS_PER_STEP OUTPUT HARMONICS [HARMONICS | reset ...]\n"
-        "       %s timeline BLOCK_SIZE OUTPUT [note=MIDI] [trigger=unpatched|low|high|rise] HARMONICS FRAMES [HARMONICS FRAMES | reset ...]\n"
+        "       %s timeline BLOCK_SIZE OUTPUT [note=MIDI] [timbre=VALUE] [trigger=unpatched|low|high|rise] HARMONICS FRAMES [HARMONICS FRAMES | reset ...]\n"
         "       %s helper INDEX_OR_synthetic SECONDS OUTPUT\n"
         "       %s bursts|lpg-reference INDEX SECONDS OUTPUT BLOCK_SIZE\n"
         "       %s retrigger-reference EDGE_FRAME OUTPUT\n"
-        "       %s neutral baseline|morph|macro unpatched|triggered OUTPUT\n",
-        argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
+        "       %s neutral baseline|morph|macro unpatched|triggered OUTPUT\n"
+        "       %s bandpass OUTPUT HZ [HZ ...]\n",
+        argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
     return 1;
   }
   const double seconds = std::atof(argv[2]);
@@ -266,6 +286,10 @@ int main(int argc, char** argv) {
     }
     if ((steps || timeline) && std::strncmp(argv[step], "note=", 5) == 0) {
       parameters.note = static_cast<float>(std::atof(argv[step] + 5));
+      continue;
+    }
+    if ((steps || timeline) && std::strncmp(argv[step], "timbre=", 7) == 0) {
+      parameters.timbre = static_cast<float>(std::atof(argv[step] + 7));
       continue;
     }
     if ((steps || timeline) && std::strcmp(argv[step], "reset") == 0) {

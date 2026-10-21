@@ -50,8 +50,14 @@ ratios. During crossfades the ceiling considers both voices and updates as soon
 as a voice retires or a queued fade begins, independently of render partitions.
 The cadence/crossfade signal splits into clean AUX and a separate MAIN path
 before the matched keypress LPGs. AUX is taken directly from that split, so
-future MAIN treatment cannot feed into it. Bad-line treatment remains a
-subsequent task; MAIN currently bypasses treatment and TIMBRE is inactive.
+MAIN treatment cannot feed into it. TIMBRE 0 is an exact bad-line bypass.
+From 0 to 1/3, TIMBRE linearly mixes in a fixed 300 Hz high-pass followed by
+a 3400 Hz low-pass, both second-order SVFs with Q approximately 0.707.
+Cutoffs do not transpose with pitch. Mix changes settle over 5 ms, including
+returning to exact bypass; Reset clears the mix and filter history.
+The filters use stmlib's algebraic frequency approximation. Saturation and
+digital reduction remain subsequent tasks; TIMBRE above 1/3 currently retains
+the fully filtered signal.
 MORPH and macro are deliberately unused across their full ranges.
 
 From your eurorack checkout:
@@ -101,8 +107,17 @@ each corresponding baseline channel with both controls at 0.5, using identical
 initial state and trigger events in unpatched and 2 Hz triggered operation.
 The key-5 reference also runs across all four partition sizes. Every engine
 render in the driver must report already-enveloped output.
-The timeline driver accepts `trigger=low`, `trigger=high`, `trigger=rise`, and
-`trigger=unpatched` tokens alongside sample-timed selections and `reset`.
+Bad-line tests render FSK for 2 s at TIMBRE 0 from Reset and after TIMBRE 1,
+checking clean MAIN/AUX equality and total non-sine residual below -40 dBc.
+At TIMBRE 1/3, 150/1200/8800 Hz renders check stopband/passband attenuation,
+spectral purity and unchanged AUX. An independent helper sine sweep locates
+both -3 dB edges relative to the measured passband peak. Partial mixes, reset
+recovery and the 5 ms return to bypass are also checked across block sizes.
+Treated MAIN is checked against full scale, allowing filter-onset overshoot
+above the clean oscillator's 0.5 peak; AUX retains its clean bound.
+The timeline driver accepts `trigger=low`, `trigger=high`, `trigger=rise`,
+`trigger=unpatched`, `note=MIDI`, and `timbre=VALUE` tokens alongside
+sample-timed selections and `reset`.
 Connection tests cover seven-second patched waits, 1 ms and 1 s gates, ringback
 patch/unpatch cadence restarts, and clearing a burst across cable changes.
 Retrigger tests compare every sample against an independent LPG/crossfade
