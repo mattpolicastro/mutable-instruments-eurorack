@@ -9,7 +9,7 @@
   "author": "Matt Policastro",
   "origin": "Community",
   "license": "MIT",
-  "description": "Phreak telephone-signalling engine scaffold. Currently renders a placeholder sine for SDK smoke validation.",
+  "description": "Phreak telephone-signalling engine in development. Renders the 21 North American reference tones with nominal HARMONICS selection.",
   "family": "Experimental",
   "tags": [
     "community",
@@ -19,7 +19,7 @@
     {
       "id": "harmonics",
       "label": "Harmonics",
-      "description": "Reserved for tone selection; inactive in the scaffold."
+      "description": "Selects one of 21 North American telephone tones in equal zones."
     },
     {
       "id": "timbre",
@@ -38,8 +38,8 @@
     }
   ],
   "outputs": {
-    "main": "Placeholder sine output for SDK smoke validation",
-    "aux": "Copy of the placeholder sine output"
+    "main": "Selected reference tone; bad-line treatment is pending",
+    "aux": "Clean selected reference tone"
   },
   "source": {
     "root": "src",

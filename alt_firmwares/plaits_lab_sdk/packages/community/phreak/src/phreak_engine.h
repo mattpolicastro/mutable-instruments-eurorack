@@ -5,12 +5,13 @@
 #define PLAITS_LAB_PHREAK_ENGINE_H_
 
 #include "plaits/dsp/engine/engine.h"
+#include "phreak_tones.h"
 
 namespace plaits {
 
 class PhreakEngine : public Engine {
  public:
-  PhreakEngine() : phase_(0.0f) { }
+  PhreakEngine() { }
   ~PhreakEngine() { }
   void Init(stmlib::BufferAllocator* allocator);
   void Reset();
@@ -19,7 +20,7 @@ class PhreakEngine : public Engine {
       size_t size, bool* already_enveloped);
 
  private:
-  float phase_;
+  phreak::ToneVoice voice_;
   DISALLOW_COPY_AND_ASSIGN(PhreakEngine);
 };
 

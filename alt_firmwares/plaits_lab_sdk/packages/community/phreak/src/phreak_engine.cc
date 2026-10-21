@@ -3,25 +3,22 @@
 
 #include "phreak_engine.h"
 
-// Placeholder smoke oscillator using the shared sine lookup table.
-#include "plaits/dsp/oscillator/sine_oscillator.h"
-
 namespace plaits {
 
 void PhreakEngine::Init(stmlib::BufferAllocator* allocator) {
   (void) allocator;
   Reset();
 }
-void PhreakEngine::Reset() { phase_ = 0.0f; }
+void PhreakEngine::Reset() { voice_.Reset(); }
 
 void PhreakEngine::Render(const EngineParameters& parameters, float* out,
     float* aux, size_t size, bool* already_enveloped) {
-  const float frequency = NoteToFrequency(parameters.note);
+  const phreak::TonePlan& plan = phreak::kNorthAmerica;
+  const size_t index = phreak::NominalToneIndex(plan, parameters.harmonics);
+  voice_.SetTone(plan.entries[index]);
   *already_enveloped = false;
   for (size_t i = 0; i < size; ++i) {
-    phase_ += frequency;
-    phase_ -= static_cast<int>(phase_);
-    out[i] = 0.5f * Sine(phase_);   // sine LUT — phase in [0, 1)
+    out[i] = voice_.Next();
     aux[i] = out[i];
   }
 }
