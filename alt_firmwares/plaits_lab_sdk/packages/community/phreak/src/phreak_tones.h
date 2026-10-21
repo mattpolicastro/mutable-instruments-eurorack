@@ -117,10 +117,18 @@ class ToneVoice {
       increment_[i] = entry.frequency_hz[i] / kSampleRate;
     }
   }
-  float Next(bool patched = false) {
+  // Largest reference increment, before transposition (cycles per sample).
+  float max_increment() const {
+    float maximum = 0.0f;
+    for (size_t i = 0; i < oscillator_count_; ++i) {
+      if (increment_[i] > maximum) maximum = increment_[i];
+    }
+    return maximum;
+  }
+  float Next(bool patched = false, float pitch_ratio = 1.0f) {
     float sample = 0.0f;
     for (size_t i = 0; i < oscillator_count_; ++i) {
-      phase_[i] += increment_[i];
+      phase_[i] += increment_[i] * pitch_ratio;
       phase_[i] -= static_cast<int>(phase_[i]);
       sample += Sine(phase_[i]);
     }

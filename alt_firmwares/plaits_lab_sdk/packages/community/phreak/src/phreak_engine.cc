@@ -3,6 +3,8 @@
 
 #include "phreak_engine.h"
 
+#include "stmlib/dsp/units.h"
+
 namespace plaits {
 
 void PhreakEngine::Init(stmlib::BufferAllocator* allocator) {
@@ -27,6 +29,17 @@ void PhreakEngine::StartFade(const phreak::TonePlan& plan, size_t index) {
   voices_[1 - active_voice_].Reset();
   voices_[1 - active_voice_].SetTone(plan.entries[index]);
   fade_sample_ = 0;
+}
+
+float PhreakEngine::LimitPitchRatio(float ratio) const {
+  float maximum = voices_[active_voice_].max_increment();
+  if (fade_sample_ < kCrossfadeSamples) {
+    const float incoming = voices_[1 - active_voice_].max_increment();
+    if (incoming > maximum) maximum = incoming;
+  }
+  // One ceiling for every audible component, including both fading voices.
+  const float ceiling = 0.45f / maximum;
+  return ratio < ceiling ? ratio : ceiling;
 }
 
 void PhreakEngine::Render(const EngineParameters& parameters, float* out,
@@ -64,10 +77,12 @@ void PhreakEngine::Render(const EngineParameters& parameters, float* out,
     // HIGH/LOW alone neither restart nor shorten the keypress deadline.
     keypress_.Trigger();
   }
+  const float requested_ratio = stmlib::SemitonesToRatio(parameters.note - 60.0f);
+  float pitch_ratio = LimitPitchRatio(requested_ratio);
   for (size_t i = 0; i < size; ++i) {
-    float sample = voices_[active_voice_].Next(patched);
+    float sample = voices_[active_voice_].Next(patched, pitch_ratio);
     if (fade_sample_ < kCrossfadeSamples) {
-      const float incoming = voices_[1 - active_voice_].Next(patched);
+      const float incoming = voices_[1 - active_voice_].Next(patched, pitch_ratio);
       // Include both endpoints: sample 0 is entirely outgoing and sample 239
       // entirely incoming. Complementary weights keep the mixture bounded.
       const float weight = static_cast<float>(fade_sample_)
@@ -78,6 +93,9 @@ void PhreakEngine::Render(const EngineParameters& parameters, float* out,
         active_index_ = incoming_index_;
         // Begin any queued fade on the very next sample, even within a block.
         if (pending_index_ != active_index_) StartFade(plan, pending_index_);
+        // A voice retired or a queued voice began: update the common ceiling
+        // immediately so pitch does not depend on the host's block partition.
+        pitch_ratio = LimitPitchRatio(requested_ratio);
       }
     }
     out[i] = sample;

@@ -126,6 +126,7 @@ class ToneTests(unittest.TestCase):
             "-O2", "-Wall", "-Werror", "-isystem", str(REPO_ROOT),
             "-I", str(PACKAGE / "src"), str(PACKAGE / "tests/render_cases.cc"),
             str(PACKAGE / "src/phreak_engine.cc"),
+            str(REPO_ROOT / "stmlib/dsp/units.cc"),
             str(resources), "-o", str(cls.driver),
         ]
         subprocess.run(command, check=True, cwd=REPO_ROOT)
@@ -178,14 +179,93 @@ class ToneTests(unittest.TestCase):
                 self.assertLessEqual(max(abs(a - b) for a, b in zip(samples, reference)),
                                      1e-6)
 
-    def assert_tone(self, samples, index):
-        frequencies = TONE_CASES[index][2]
+    def assert_tone(self, samples, index, ratio=1):
+        frequencies = tuple(hz * ratio for hz in TONE_CASES[index][2])
         amplitudes, residual = sine_fit(samples, frequencies)
         level = 0.25 if len(frequencies) == 2 else 0.5
         for amplitude in amplitudes:
             self.assertAlmostEqual(amplitude, level, delta=0.001)
         self.assertLessEqual(20 * math.log10(max(amplitudes) / min(amplitudes)), 0.5)
         self.assertLess(residual / (min(amplitudes) / math.sqrt(2)), 0.01)
+
+    def test_octave_transposition(self):
+        """phreak-pitch-outputs/common-pitch-ratio/octave-transposition"""
+        for note, ratio in ((48, 0.5), (60, 1), (72, 2)):
+            with self.subTest(note=note):
+                channels = self.render_timeline([(1 / 42, 24000)], note=note)
+                for samples in channels:
+                    self.assert_tone(samples[960:], 0, ratio)
+
+    def test_dtmf_and_fsk_transposition(self):
+        """phreak-pitch-outputs/common-pitch-ratio/dtmf-and-fsk-transposition"""
+        for index, note, ratio in ((5, 72, 2), (19, 72, 2), (20, 48, 0.5),
+                                   (5, 60.5, 2 ** (0.5 / 12))):
+            with self.subTest(index=index, note=note):
+                channels = self.render_timeline([((index + 0.5) / 21, 24000)], note=note)
+                for samples in channels:
+                    # The full residual also rejects extra FSK components and
+                    # independent quantization of either DTMF frequency.
+                    self.assert_tone(samples[960:], index, ratio)
+
+    def test_high_pitch_ceiling_preserves_pairs(self):
+        """phreak-pitch-outputs/common-pitch-ratio/high-pitch-ceiling-preserves-pairs"""
+        for index, note, ratio in ((18, 120, 21600 / 1633),
+                                   (18, 127, 21600 / 1633),
+                                   (19, 120, 21600 / 2200),
+                                   (20, 120, 21600 / 1200), (0, 0, 1 / 32)):
+            with self.subTest(index=index, note=note):
+                channels = self.render_timeline([((index + 0.5) / 21, 24000)], note=note)
+                # read_channels checks every sample for finiteness and bounds;
+                # fitting both expected Hz with <1% residual is tighter than
+                # the 0.1% frequency tolerance, and rejects separate clamps.
+                for samples in channels:
+                    self.assert_tone(samples[960:], index, ratio)
+
+    def test_common_ceiling_during_queued_crossfades(self):
+        """phreak-pitch-outputs/common-pitch-ratio/high-pitch-ceiling-preserves-pairs"""
+        def voice(frequencies):
+            phases = [0.0] * len(frequencies)
+            age = 0
+
+            def render(frames, ratio):
+                nonlocal age
+                result = []
+                for _ in range(frames):
+                    for i, hz in enumerate(frequencies):
+                        phases[i] = (phases[i] + hz * ratio / 48000) % 1
+                    result.append(0.5 / len(frequencies) * min(age / 48, 1)
+                                  * sum(math.sin(2 * math.pi * p) for p in phases))
+                    age += 1
+                return result
+            return render
+
+        # Independent sample timeline: an early FSK request stays pending
+        # until key D's fade finishes. Then returning to dial must retain the
+        # outgoing FSK ceiling until its weight reaches zero.
+        dial, key_d, space = voice((350, 440)), voice((941, 1633)), voice((2200,))
+        expected = dial(173, 32)
+        expected += reference_fade(dial(240, 21600 / 1633), key_d(240, 21600 / 1633))
+        expected += reference_fade(key_d(240, 21600 / 2200), space(240, 21600 / 2200))
+        expected += space(53, 21600 / 2200)
+        new_dial = voice((350, 440))
+        expected += reference_fade(space(240, 21600 / 2200), new_dial(240, 21600 / 2200))
+        expected += new_dial(1000, 32)
+        baseline = None
+        for block in (1, 7, 12, 24):
+            with self.subTest(block=block):
+                channels = self.render_timeline([
+                    (1 / 42, 173), (37 / 42, 7), (39 / 42, 233 + 240 + 53),
+                    (1 / 42, 1240),
+                ], block, note=120)
+                for samples in channels:
+                    self.assertEqual(len(samples), len(expected))
+                    # Allow float phase accumulation and sine-LUT rounding
+                    # against the independent double-precision reference.
+                    self.assertLess(max(abs(a - b) for a, b in zip(samples, expected)),
+                                    0.0003)
+                if baseline is None:
+                    baseline = channels
+                self.assertEqual(channels, baseline)
 
     def assert_cadence(self, samples, on, off):
         """10 ms RMS windows, 10% threshold; also require silent off samples."""
@@ -434,11 +514,15 @@ class ToneTests(unittest.TestCase):
             for note in (48, 72):
                 fresh = self.render_timeline([(target, seconds * 48000)], note=note)[1]
                 self.assert_cadence(fresh, on, off)
+                ratio = 2 ** ((note - 60) / 12)
+                for start in range(0, len(fresh), round((on + off) * 48000)):
+                    self.assert_tone(fresh[start + 960:start + 20160], index, ratio)
                 # Deliberately unaligned event positions, and reset during off,
                 # away from a cycle boundary. Reset must reproduce startup.
                 prefix, dwell = 1733, seconds * 48000 - 1234
                 restart = round(on * 48000) + 480
                 dial = self.render_timeline([(1 / 42, prefix + 240)], note=note)[1]
+                self.assert_tone(dial[960:], 0, ratio)
                 expected = (list(dial[:prefix])
                             + reference_fade(dial[prefix:], fresh[:240])
                             + list(fresh[240:dwell]) + list(fresh[:restart]))

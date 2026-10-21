@@ -22,6 +22,7 @@ class PhreakEngine : public Engine {
  private:
   enum { kCrossfadeSamples = 240 };
   void StartFade(const phreak::TonePlan& plan, size_t index);
+  float LimitPitchRatio(float ratio) const;
 
   phreak::ToneSelector selector_;
   phreak::ToneVoice voices_[2];

@@ -41,7 +41,14 @@ the usual 5 ms selection crossfade. Patching without an edge closes output
 immediately; unpatching restarts the selected entry's normal on phase. Both
 connection transitions discard the old burst and LPG history. Reset also clears
 that state, along with all voice, cadence and pending-selection state.
-Pitch transposition and bad-line treatment remain subsequent tasks.
+MIDI note 60 reproduces the reference frequencies. Pitch applies one
+`SemitonesToRatio(note - 60)` multiplier to every active component: notes 48
+and 72 halve and double the frequencies without changing cadence or burst
+timing. At extreme high notes, one shared ratio ceiling keeps the highest
+component at 0.45 times the sample rate (21600 Hz at 48 kHz), preserving pair
+ratios. During crossfades the ceiling considers both voices and updates as soon
+as a voice retires or a queued fade begins, independently of render partitions.
+Bad-line treatment remains a subsequent task.
 TIMBRE, MORPH and macro are currently inactive.
 
 From your eurorack checkout:
@@ -68,9 +75,15 @@ fresh engine, including subsequent selection changes. These cases run with
 Cadence tests cover 3 s continuous renders, four complete busy cycles, two
 complete ring cycles, 1 ms edge ramps, phase continuity through silence, and
 selection/reset restarts at notes 48/72 with identical sample-timed events in
-every partition size. Pitch transposition itself remains task 4.1. A test-only
+every partition size, with spectral checks of the transposed tones. A test-only
 400+450 Hz descriptor with 0.25/0.75 s cadence exercises the unchanged helper
 without adding a production locale or control.
+Pitch tests fit both outputs against octave dial, transposed DTMF/FSK and
+fractional-note references, checking component levels and unexplained signal.
+Extreme-note tests cover key D's shared 21600 Hz ceiling, single FSK tones and
+low dial. A separate oscillator reference checks the common ceiling through
+queued crossfades and its release when the highest voice retires, at all four
+render partition sizes.
 Periodic burst tests render key 5 for 2 s and busy/ringback for 3 s at 2 Hz,
 checking both channels' frequencies, 100 ms durations, and silence below
 -80 dBFS after 110 ms in 5 ms windows. An independent driver reference uses
