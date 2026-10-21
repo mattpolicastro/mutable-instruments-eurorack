@@ -40,12 +40,15 @@ mirrors `plaits/dsp/voice.cc`):
   decay envelope when TRIG is patched and the jack is not.
 - TRIG has a 1 ms delay and reports unpatched, low, rising edge and high exactly
   as the engine sees them on hardware.
-- LEVEL sets accent, and drives the low-pass gate for engines that do not
-  envelope themselves. COLOUR and DECAY are that gate's settings.
-- The **LPG** button (lit when on) is for engines that do envelope themselves,
-  like Phreak: the engine plays untriggered and Plaits' low-pass gate strikes
-  it on TRIG instead, so DECAY and COLOUR apply. Hardware cannot do this for
-  such an engine; it is an audition aid.
+- TRIG unpatched is always on. Patched, TRIG strikes Plaits' low-pass gate,
+  and LEVEL sets accent and drives the gate.
+- The gate's response and decay are hidden settings, as on the hardware, where
+  you hold a button and turn TIMBRE and MORPH. Here, right-click → **Edit LPG
+  response/decay** swaps those two knobs for blue LPG knobs until you untick it.
+- For an engine that envelopes itself, like Phreak, right-click → **With TRIG
+  patched** chooses **Engine's own envelope** (the default, as hardware does it)
+  or **Plaits LPG**, which plays the engine untriggered and lets the gate strike
+  it. The setting is saved with the patch.
 - MACRO is the fourth synthesis macro, neutral at noon.
 
 The panel and tooltips use the package's own names for HARMONICS, TIMBRE,
