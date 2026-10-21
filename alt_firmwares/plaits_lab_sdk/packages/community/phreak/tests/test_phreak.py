@@ -65,6 +65,13 @@ def adjacent_float32(value, direction):
     return struct.unpack("=f", struct.pack("=I", bits + direction))[0]
 
 
+def reference_fade(outgoing, incoming):
+    """Independent 5 ms mixture of separately rendered, free-running voices."""
+    assert len(outgoing) == len(incoming) == 240
+    return [(1 - n / 239) * outgoing[n] + (n / 239) * incoming[n]
+            for n in range(240)]
+
+
 def sine_fit(samples, frequencies):
     """Least squares at reference Hz, allowing arbitrary component phases.
 
@@ -134,12 +141,38 @@ class ToneTests(unittest.TestCase):
         aux = self.read_aux(output, count * frames)
         return [aux[start:start + frames] for start in range(0, len(aux), frames)]
 
-    def read_aux(self, output, frames):
+    def render_timeline(self, events, block_size=12):
+        """Sample-timed (HARMONICS, frames) events, with optional reset tokens."""
+        output = self.directory / "timeline.f32"
+        arguments = []
+        frames = 0
+        for event in events:
+            if event == "reset":
+                arguments.append(event)
+            else:
+                harmonics, count = event
+                arguments.extend((str(harmonics), str(count)))
+                frames += count
+        subprocess.run([str(self.driver), "timeline", str(block_size), str(output),
+                        *arguments], check=True)
+        return self.read_channels(output, frames)
+
+    def read_channels(self, output, frames):
         samples = array("f")
         samples.frombytes(output.read_bytes())
         self.assertEqual(len(samples), 2 * frames)
         self.assertTrue(all(math.isfinite(x) and abs(x) <= 0.500001 for x in samples))
-        return samples[1::2]
+        return samples[0::2], samples[1::2]
+
+    def read_aux(self, output, frames):
+        return self.read_channels(output, frames)[1]
+
+    def assert_reference(self, channels, reference):
+        for label, samples in zip(("MAIN", "AUX"), channels):
+            with self.subTest(channel=label):
+                self.assertEqual(len(samples), len(reference))
+                self.assertLessEqual(max(abs(a - b) for a, b in zip(samples, reference)),
+                                     1e-6)
 
     def assert_tone(self, samples, index):
         frequencies = TONE_CASES[index][2]
@@ -237,12 +270,86 @@ class ToneTests(unittest.TestCase):
                     self.assert_tone(steps[step][960:], index)
 
     def test_nonadjacent_selection_and_endpoint_reversal(self):
-        # Check settled destinations only; direct-jump crossfades are task 2.2.
+        # Complement the sample-by-sample direct-jump regression with spectra.
         controls = [1 / 42, 41 / 42, 1 / 42, 1.1, -0.1, 35 / 42, 11 / 42]
         indices = [0, 20, 0, 20, 0, 17, 5]
         for step, (samples, index) in enumerate(zip(self.render_steps(controls, 0.1), indices)):
             with self.subTest(step=step, index=index):
                 self.assert_tone(samples[960:], index)
+
+    def test_five_millisecond_reference_mixture(self):
+        """phreak-tones/selection-crossfade/five-millisecond-transition"""
+        old = self.render_timeline([(3 / 42, 6000)])[1]
+        new = self.render_timeline([(5 / 42, 1200)])[1]
+        expected = (list(old[:4800]) + reference_fade(old[4800:5040], new[:240])
+                    + list(new[240:]))
+        for block_size in (1, 7, 12, 24):
+            with self.subTest(block_size=block_size):
+                channels = self.render_timeline([(3 / 42, 4800), (5 / 42, 1200)],
+                                                block_size)
+                self.assert_reference(channels, expected)
+                for samples in channels:
+                    self.assertEqual(samples[4800], old[4800])
+                    self.assertEqual(samples[5039], new[239])
+                    self.assertEqual(samples[5040:], new[240:])
+
+    def test_large_selection_jump_reference_mixture(self):
+        """phreak-tones/selection-hysteresis/large-selection-jump"""
+        dial = self.render_timeline([(1 / 42, 5040)])[1]
+        mark = self.render_timeline([(41 / 42, 5040)])[1]
+        expected = (list(dial[:4800])
+                    + reference_fade(dial[4800:], mark[:240]) + list(mark[240:4800])
+                    + reference_fade(mark[4800:], dial[:240]) + list(dial[240:4800]))
+        for block_size in (1, 7, 12, 24):
+            with self.subTest(block_size=block_size):
+                channels = self.render_timeline(
+                    [(1 / 42, 4800), (41 / 42, 4800), (1 / 42, 4800)], block_size)
+                self.assert_reference(channels, expected)
+
+    def test_rapid_changes_keep_only_latest_pending_voice(self):
+        """phreak-tones/selection-crossfade/rapid-changes-settle"""
+        key1 = self.render_timeline([(3 / 42, 1440)])[1]
+        key2 = self.render_timeline([(5 / 42, 1440)])[1]
+        # Besides the specified FSK request, cover returning to the incoming
+        # voice (cancel pending), outgoing voice (finish then fade back), and
+        # hysteresis around the pending key-3 zone (retain key 3).
+        for final_h, final_index in ((39 / 42, 19), (5 / 42, 2),
+                                     (3 / 42, 1), (3 / 21 - 0.001, 3)):
+            final = self.render_timeline([((final_index + 0.5) / 21, 1440)])[1]
+            expected = list(key1[:48]) + reference_fade(key1[48:288], key2[:240])
+            if final_index == 2:
+                expected += list(key2[240:1296])
+            else:
+                expected += reference_fade(key2[240:480], final[:240])
+                expected += list(final[240:1056])
+            for block_size in (1, 7, 12, 24):
+                with self.subTest(final_index=final_index, block_size=block_size):
+                    channels = self.render_timeline(
+                        [(3 / 42, 48), (5 / 42, 48), (7 / 42, 48), (final_h, 1200)],
+                        block_size)
+                    self.assert_reference(channels, expected)
+                    # Final request is sample 144; by 10 ms + one block only
+                    # the latest requested tone may remain, with full amplitude.
+                    self.assert_tone(channels[1][144 + 480 + block_size:], final_index)
+
+    def test_reset_during_fade_clears_voices_pending_and_selector(self):
+        """phreak-tones/selection-crossfade/rapid-changes-settle"""
+        for block_size in (1, 7, 12, 24):
+            for target in (3 / 42, 5 / 42, 39 / 42, 3 / 21 - 0.001):
+                # Replay after Reset must be identical to a fresh engine,
+                # including startup, a later transition, and another queue.
+                replay = [(target, 360), (7 / 42, 48), (1 / 42, 720)]
+                fresh = self.render_timeline(replay, block_size)
+                # Reset with both slots active, at promotion, and during the
+                # queued fade after the two voice slots have swapped roles.
+                for elapsed in (48, 239, 240, 300, 479):
+                    with self.subTest(block_size=block_size, target=target, elapsed=elapsed):
+                        prefix = [(3 / 42, 4800), (5 / 42, 12), (7 / 42, 12),
+                                  (39 / 42, elapsed - 24)]
+                        channels = self.render_timeline(prefix + ["reset"] + replay,
+                                                        block_size)
+                        for samples, reference in zip(channels, fresh):
+                            self.assertEqual(samples[4800 + elapsed:], reference)
 
     def test_nominal_selector_indices(self):
         # Direct helper checks make endpoint failures deterministic even when a

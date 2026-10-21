@@ -20,8 +20,18 @@ class PhreakEngine : public Engine {
       size_t size, bool* already_enveloped);
 
  private:
+  enum { kCrossfadeSamples = 240 };
+  void StartFade(const phreak::TonePlan& plan, size_t index);
+
   phreak::ToneSelector selector_;
-  phreak::ToneVoice voice_;
+  phreak::ToneVoice voices_[2];
+  bool initialized_;
+  size_t active_voice_;
+  size_t active_index_;
+  size_t incoming_index_;
+  size_t pending_index_;
+  // kCrossfadeSamples means idle; otherwise this is the next fade sample.
+  size_t fade_sample_;
   DISALLOW_COPY_AND_ASSIGN(PhreakEngine);
 };
 

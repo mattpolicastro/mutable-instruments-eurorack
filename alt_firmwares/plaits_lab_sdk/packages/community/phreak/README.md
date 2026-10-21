@@ -7,10 +7,18 @@ Init or Reset. Each entry's centre is `(index + 0.5) / 21`. Once index `i` is
 selected, it stays until H reaches `(i + 1) / 21 + 0.002` upward or falls
 strictly below `i / 21 - 0.002` downward, where those neighbors exist.
 Crossing a threshold selects the current nominal zone directly, including
-large jumps. Both outputs currently render the selected reference-Hz
+large jumps. Selection changes use a 5 ms (240-sample) linear crossfade on
+both outputs. The outgoing voice keeps running while the incoming voice starts
+from zero phase; complementary weights include fully outgoing and fully incoming
+endpoints. During a fade only the latest accepted request is retained. The fade
+finishes before another starts, so rapid requests settle within 10 ms plus one
+control block, with at most two tone voices active. Reset clears both voices,
+the fade, pending selection, and hysteresis history.
+
+Both outputs currently render the selected reference-Hz
 sines continuously: 0.25 per component for pairs, 0.5 for single-tone FSK.
-Pitch transposition, cadence playback, trigger articulation, selection crossfades
-and bad-line treatment remain subsequent tasks. TIMBRE, MORPH and macro are
+Pitch transposition, cadence playback, trigger articulation and bad-line
+treatment remain subsequent tasks. TIMBRE, MORPH and macro are
 currently inactive; cadence durations are stored in the table for later use.
 
 From your eurorack checkout:
@@ -28,9 +36,13 @@ residual measurements check tuning, equal pair levels and unwanted components
 on AUX. Fresh renders check all 20 exact boundaries and clamped endpoints;
 stepped renders check every adjacent pair with 20 ms jitter/reversal dwells,
 exact hysteresis thresholds and adjacent floats, resets, and nonadjacent jumps.
-These tests measure settled tone identity; crossfade behavior is a later task.
-Set `CXX` to choose
-the compiler. Shared repository headers use a trailing enum comma and are
+Crossfade tests compare both channels against complementary mixtures of
+separately rendered voices with a maximum float residual of 1e-6. Sample-timed
+requests cover adjacent changes, direct dial/FSK jumps, rapid requests and
+pending-target cancellation/reversal. Reset during either fade must match a
+fresh engine, including subsequent selection changes. These cases run with
+1-, 7-, 12- and 24-sample partitions to check sample-based timing.
+Set `CXX` to choose the compiler. Shared repository headers use a trailing enum comma and are
 included with `-isystem`; strict C++98 diagnostics apply to package source.
 The shared resource translation unit is compiled separately because it uses a
 zero-length array extension.
