@@ -21,15 +21,15 @@ For the session managing Phreak. Matt approved this plan on 2026-10-21:
 
 ## A. Now (safe while the run builds)
 
-1. **Create the fork:** `gh repo fork lylepmills/eurorack --clone=false`, giving
-   `mattpolicastro/eurorack`. Then `gh repo edit mattpolicastro/eurorack --enable-issues`:
+1. **Create the fork:** `gh repo fork lylepmills/eurorack --clone=false --fork-name mutable-instruments-eurorack`, giving
+   `mattpolicastro/mutable-instruments-eurorack`. Then `gh repo edit mattpolicastro/mutable-instruments-eurorack --enable-issues`:
    forks have issues disabled by default, and the front door starts from issues.
 2. **Repoint the source clone.** In `~/Projects/plaits-telephone`:
    ```sh
    git remote rename origin upstream
-   git remote add origin https://github.com/mattpolicastro/eurorack.git
+   git remote add origin https://github.com/mattpolicastro/mutable-instruments-eurorack.git
    git push -u origin telephone
-   gh repo edit mattpolicastro/eurorack --default-branch telephone
+   gh repo edit mattpolicastro/mutable-instruments-eurorack --default-branch telephone
    ```
    `specloop publish` pushes to the source clone's `origin`, so this repointing is
    what sends the PR to the fork. Do not push `spec/phreak-engine` from the clone:
@@ -39,9 +39,9 @@ For the session managing Phreak. Matt approved this plan on 2026-10-21:
    ```sh
    for l in spec:draft spec:review spec:approved agent:revise needs-human \
             agent:ready agent:working agent:done; do
-     gh label create "$l" -R mattpolicastro/eurorack --force; done
+     gh label create "$l" -R mattpolicastro/mutable-instruments-eurorack --force; done
    ```
-4. **Name the GitHub repo in the manifest.** Add `github = "mattpolicastro/eurorack"`
+4. **Name the GitHub repo in the manifest.** Add `github = "mattpolicastro/mutable-instruments-eurorack"`
    under `[run]` in both the template (`plaits-phreak.toml`) and the run's copy
    (`~/.specloop/runs/phreak-engine/manifest.toml`). `publish` reads the run's copy
    when it runs, so this needs no pause.
@@ -63,7 +63,7 @@ For the session managing Phreak. Matt approved this plan on 2026-10-21:
    Matt has approved for this repo:
    ```toml
    [[repos]]
-   name = "mattpolicastro/eurorack"
+   name = "mattpolicastro/mutable-instruments-eurorack"
    engine = "specloop"
    manifest = "/Users/mattpolicastro/Projects/nightshift/specloop/manifests/plaits-phreak.toml"
    base = "telephone"
