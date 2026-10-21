@@ -16,7 +16,7 @@ const plaits::phreak::TonePlan kSynthetic = {
 };
 
 bool RenderAudio(plaits::Engine& engine,
-    const plaits::EngineParameters& parameters, size_t frames, FILE* output,
+    plaits::EngineParameters parameters, size_t frames, FILE* output,
     size_t block_size = plaits::kBlockSize) {
   if (block_size == 0 || block_size > 24) return false;
   for (size_t position = 0; position < frames;) {
@@ -26,6 +26,8 @@ bool RenderAudio(plaits::Engine& engine,
     const size_t size = remaining < block_size ? remaining : block_size;
     bool enveloped = false;
     engine.Render(parameters, main, aux, size, &enveloped);
+    if (!enveloped) return false;
+    parameters.trigger &= ~plaits::TRIGGER_RISING_EDGE;
     for (size_t i = 0; i < size; ++i) {
       interleaved[2 * i] = main[i];
       interleaved[2 * i + 1] = aux[i];
@@ -41,6 +43,61 @@ bool RenderAudio(plaits::Engine& engine,
 // Host-only driver. Audio is interleaved native float MAIN/AUX at 48 kHz.
 int main(int argc, char** argv) {
   const plaits::phreak::TonePlan& plan = plaits::phreak::kNorthAmerica;
+  if (argc == 6 && (std::strcmp(argv[1], "bursts") == 0
+      || std::strcmp(argv[1], "lpg-reference") == 0)) {
+    const int index = std::atoi(argv[2]);
+    const int seconds = std::atoi(argv[3]);
+    const size_t block = static_cast<size_t>(std::atoi(argv[5]));
+    if ((index != 5 && index != 13 && index != 14)
+        || seconds < 1 || seconds > 3 || block == 0 || block > 24) return 1;
+    FILE* output = std::fopen(argv[4], "wb");
+    if (!output) return 1;
+    if (std::strcmp(argv[1], "bursts") == 0) {
+      plaits::PhreakEngine engine;
+      engine.Init(NULL);
+      plaits::EngineParameters p = plaits::EngineParameters();
+      p.note = 60.0f;
+      p.harmonics = (index + 0.5f) / 21.0f;
+      p.morph = p.macro = 0.5f;
+      for (int edge = 0; edge < seconds * 2; ++edge) {
+        // Like the SDK's 2 Hz trigger, high for 1/4 of each period.
+        p.trigger = plaits::TRIGGER_RISING_EDGE | plaits::TRIGGER_HIGH;
+        if (!RenderAudio(engine, p, 6000, output, block)) return 1;
+        p.trigger = plaits::TRIGGER_LOW;
+        if (!RenderAudio(engine, p, 18000, output, block)) return 1;
+      }
+    } else {
+      // Independent test oracle: no package voice, cadence or contour helpers.
+      // Use the repository's oscillator primitive to preserve float phase
+      // arithmetic, and literal normative Hz and sample times at 48 kHz.
+      const float hz0 = index == 5 ? 770.0f : index == 13 ? 480.0f : 440.0f;
+      const float hz1 = index == 5 ? 1336.0f : index == 13 ? 620.0f : 480.0f;
+      float phase0 = 0.0f, phase1 = 0.0f;
+      plaits::LowPassGate lpg;
+      lpg.Init();
+      for (int n = 0; n < seconds * 48000; ++n) {
+        phase0 += hz0 / 48000.0f;
+        phase1 += hz1 / 48000.0f;
+        phase0 -= static_cast<int>(phase0);
+        phase1 -= static_cast<int>(phase1);
+        const int age = n % 24000;
+        float samples[2] = { 0.0f, 0.0f };
+        if (age < 4800) {
+          const float e = age < 48 ? age / 48.0f
+              : age < 4608 ? 1.0f : (4800 - age) / 192.0f;
+          const float taper = age < 4608 ? 1.0f : (4800 - age) / 192.0f;
+          samples[0] = 0.25f * (plaits::Sine(phase0) + plaits::Sine(phase1));
+          samples[1] = samples[0] * e * taper;  // Amplitude-only negative oracle.
+          lpg.Process(e, 0.003f + 0.3f * (e * e) * (e * e), 0.0f, samples, 1);
+          samples[0] *= taper;
+        } else {
+          lpg.Init();
+        }
+        if (std::fwrite(samples, sizeof(float), 2, output) != 2) return 1;
+      }
+    }
+    return std::fclose(output) == 0 ? 0 : 1;
+  }
   if (argc == 3 && std::strcmp(argv[1], "index") == 0) {
     // Observe the selector without dereferencing a potentially invalid index.
     const float harmonics = static_cast<float>(std::atof(argv[2]));
@@ -92,8 +149,9 @@ int main(int argc, char** argv) {
         "usage: %s table | index HARMONICS | HARMONICS SECONDS OUTPUT\n"
         "       %s steps SECONDS_PER_STEP OUTPUT HARMONICS [HARMONICS | reset ...]\n"
         "       %s timeline BLOCK_SIZE OUTPUT [note=MIDI] HARMONICS FRAMES [HARMONICS FRAMES | reset ...]\n"
-        "       %s helper INDEX_OR_synthetic SECONDS OUTPUT\n",
-        argv[0], argv[0], argv[0], argv[0]);
+        "       %s helper INDEX_OR_synthetic SECONDS OUTPUT\n"
+        "       %s bursts|lpg-reference INDEX SECONDS OUTPUT BLOCK_SIZE\n",
+        argv[0], argv[0], argv[0], argv[0], argv[0]);
     return 1;
   }
   const double seconds = std::atof(argv[2]);

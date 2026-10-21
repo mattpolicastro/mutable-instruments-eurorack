@@ -206,6 +206,59 @@ class ToneTests(unittest.TestCase):
                        check=True)
         return self.read_channels(output, round(seconds * 48000))
 
+    def render_bursts(self, index, seconds, block_size=12, reference=False):
+        output = self.directory / "bursts.f32"
+        subprocess.run([str(self.driver), "lpg-reference" if reference else "bursts",
+                        str(index), str(seconds), str(output), str(block_size)], check=True)
+        return self.read_channels(output, seconds * 48000)
+
+    def assert_bursts(self, channels, index):
+        for samples in channels:
+            for edge in range(0, len(samples), 24000):
+                burst = samples[edge:edge + 24000]
+                # Fit the steady hold separately from the LPG's opening/release.
+                amplitudes, residual = sine_fit(burst[960:4320], TONE_CASES[index][2])
+                self.assertTrue(all(0.20 < a < 0.26 for a in amplitudes))
+                self.assertLessEqual(20 * math.log10(max(amplitudes) / min(amplitudes)), 0.5)
+                self.assertLess(residual / (min(amplitudes) / math.sqrt(2)), 0.01)
+                threshold = 0.1 * rms(burst[960:4320])
+                active = [n for n in range(0, 24000, 240)
+                          if rms(burst[n:n + 240]) > threshold]
+                self.assertEqual(active[0], 0)
+                self.assertAlmostEqual((active[-1] + 240) / 48000, 0.100, delta=0.010)
+                self.assertEqual(active, list(range(0, active[-1] + 240, 240)))
+                for n in range(5280, 24000, 240):
+                    self.assertLess(rms(burst[n:n + 240]), 1e-4)  # -80 dBFS
+
+    def test_periodic_keypresses_through_the_lpg(self):
+        """phreak-articulation/patched-keypress-bursts/periodic-keypresses-through-the-lpg"""
+        reference, amplitude_only = self.render_bursts(5, 2, reference=True)
+        for block_size in (1, 7, 12, 24):
+            with self.subTest(block_size=block_size):
+                channels = self.render_bursts(5, 2, block_size)
+                self.assert_bursts(channels, 5)
+                # Includes every opening/release sample, deadline and idle gap;
+                # RenderAudio also requires already_enveloped on every call.
+                self.assert_reference(channels, reference)
+                self.assertEqual(channels[0], channels[1])
+        # Ensure the oracle distinguishes the closing filter from gain alone.
+        self.assertGreater(rms([a - b for a, b in
+                                zip(reference[4608:4800], amplitude_only[4608:4800])]), 0.01)
+        post = json.loads((PACKAGE / "plaits-engine.json").read_text())["postProcessing"]
+        self.assertIs(post["alreadyEnveloped"], True)
+        self.assertEqual((post["outGain"], post["auxGain"]), (1.0, 1.0))
+
+    def test_busy_and_ring_become_keypresses(self):
+        """phreak-articulation/patched-keypress-bursts/busy-and-ring-become-keypresses"""
+        for index in (13, 14):
+            with self.subTest(index=index):
+                channels = self.render_bursts(index, 3)
+                # All six edges must sound, including busy's odd half-seconds
+                # and ring's 2.0/2.5 s edges in its normal off interval.
+                self.assert_bursts(channels, index)
+                reference, _ = self.render_bursts(index, 3, reference=True)
+                self.assert_reference(channels, reference)
+
     def test_continuous_tone_classes(self):
         """phreak-articulation/unpatched-operation/continuous-tone-classes"""
         for index in (0, 5, 19):

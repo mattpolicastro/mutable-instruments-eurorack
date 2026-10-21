@@ -5,6 +5,7 @@
 #define PLAITS_LAB_PHREAK_ARTICULATION_H_
 
 #include "plaits/dsp/dsp.h"
+#include "plaits/dsp/fx/low_pass_gate.h"
 
 namespace plaits {
 namespace phreak {
@@ -46,6 +47,51 @@ class Cadence {
   size_t on_samples_;
   size_t period_samples_;
   size_t position_;
+};
+
+// A single sample clock drives both filters, independently of render blocks.
+// The final taper removes filter residue at the fixed keypress deadline.
+class Keypress {
+ public:
+  Keypress() { Reset(); }
+  void Reset() {
+    position_ = kDuration;
+    level_ = attack_start_ = 0.0f;
+    main_lpg_.Init();
+    aux_lpg_.Init();
+  }
+  void Trigger() {
+    attack_start_ = level_;
+    position_ = 0;
+  }
+  void Process(float* main, float* aux) {
+    if (position_ == kDuration) {
+      *main = *aux = 0.0f;
+      return;
+    }
+    const float taper = position_ < kRelease ? 1.0f
+        : static_cast<float>(kDuration - position_) / (kDuration - kRelease);
+    level_ = position_ < kAttack
+        ? attack_start_ + (1.0f - attack_start_) * position_ / kAttack
+        : taper;
+    const float squared = level_ * level_;
+    const float cutoff = 0.003f + 0.3f * squared * squared;
+    // One-sample calls make gain/cutoff timing independent of host partitioning.
+    main_lpg_.Process(level_, cutoff, 0.0f, main, 1);
+    aux_lpg_.Process(level_, cutoff, 0.0f, aux, 1);
+    *main *= taper;
+    *aux *= taper;
+    if (++position_ == kDuration) Reset();
+  }
+
+ private:
+  // Plaits runs at 48 kHz: 1 ms attack, release at 96 ms, idle at 100 ms.
+  enum { kAttack = 48, kRelease = 4608, kDuration = 4800 };
+  size_t position_;
+  float level_;
+  float attack_start_;
+  LowPassGate main_lpg_;
+  LowPassGate aux_lpg_;
 };
 
 }  // namespace phreak

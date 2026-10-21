@@ -117,7 +117,7 @@ class ToneVoice {
       increment_[i] = entry.frequency_hz[i] / kSampleRate;
     }
   }
-  float Next() {
+  float Next(bool patched = false) {
     float sample = 0.0f;
     for (size_t i = 0; i < oscillator_count_; ++i) {
       phase_[i] += increment_[i];
@@ -125,7 +125,8 @@ class ToneVoice {
       sample += Sine(phase_[i]);
     }
     // Advance phases even while cadence is silent.
-    return gain_ * sample * cadence_.Next();
+    const float cadence = cadence_.Next();
+    return gain_ * sample * (patched ? 1.0f : cadence);
   }
 
  private:

@@ -50,9 +50,9 @@
     "className": "PhreakEngine"
   },
   "postProcessing": {
-    "alreadyEnveloped": false,
-    "outGain": 0.8,
-    "auxGain": 0.8
+    "alreadyEnveloped": true,
+    "outGain": 1.0,
+    "auxGain": 1.0
   },
   "scenarios": "tests/scenarios.json"
 }

@@ -13,6 +13,7 @@ void PhreakEngine::Reset() {
   selector_.Reset();
   voices_[0].Reset();
   voices_[1].Reset();
+  keypress_.Reset();
   initialized_ = false;
   active_voice_ = 0;
   active_index_ = incoming_index_ = pending_index_ = 0;
@@ -41,11 +42,17 @@ void PhreakEngine::Render(const EngineParameters& parameters, float* out,
       && pending_index_ != active_index_) {
     StartFade(plan, pending_index_);
   }
-  *already_enveloped = false;
+  *already_enveloped = true;
+  const bool patched = !(parameters.trigger & TRIGGER_UNPATCHED);
+  if (!patched) {
+    keypress_.Reset();
+  } else if (parameters.trigger & TRIGGER_RISING_EDGE) {
+    keypress_.Trigger();
+  }
   for (size_t i = 0; i < size; ++i) {
-    float sample = voices_[active_voice_].Next();
+    float sample = voices_[active_voice_].Next(patched);
     if (fade_sample_ < kCrossfadeSamples) {
-      const float incoming = voices_[1 - active_voice_].Next();
+      const float incoming = voices_[1 - active_voice_].Next(patched);
       // Include both endpoints: sample 0 is entirely outgoing and sample 239
       // entirely incoming. Complementary weights keep the mixture bounded.
       const float weight = static_cast<float>(fade_sample_)
@@ -60,6 +67,7 @@ void PhreakEngine::Render(const EngineParameters& parameters, float* out,
     }
     out[i] = sample;
     aux[i] = out[i];
+    if (patched) keypress_.Process(&out[i], &aux[i]);
   }
 }
 
