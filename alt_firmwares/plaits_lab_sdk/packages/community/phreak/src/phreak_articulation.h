@@ -27,8 +27,10 @@ class Cadence {
     // zero at position 0 and unity at 48; the closing reaches zero at the
     // first off sample. Neither ramp extends the descriptor's on window.
     const size_t ramp_end = static_cast<size_t>(0.001f * kSampleRate + 0.5f);
+    // mutation-equivalent: At equality both ternary arms return ramp_end.
     size_t ramp_position = position_ < ramp_end ? position_ : ramp_end;
     if (period_samples_) {
+      // mutation-equivalent: At equality, else also yields zero via remaining = 0.
       if (position_ >= on_samples_) {
         ramp_position = 0;
       } else {
@@ -36,6 +38,7 @@ class Cadence {
         if (remaining < ramp_position) ramp_position = remaining;
       }
       if (++position_ == period_samples_) position_ = 0;
+    // mutation-equivalent: <= parks at 49 instead of 48; both clamp to unity until Reset clears the counter.
     } else if (position_ < ramp_end) {
       // Sustain at unity without an indefinitely growing counter.
       ++position_;
@@ -69,6 +72,7 @@ class Keypress {
       *main = *aux = 0.0f;
       return;
     }
+    // mutation-equivalent: At kRelease the quotient is exactly 192/192 = 1.0f, identical to the other arm.
     const float taper = position_ < kRelease ? 1.0f
         : static_cast<float>(kDuration - position_) / (kDuration - kRelease);
     level_ = position_ < kAttack
