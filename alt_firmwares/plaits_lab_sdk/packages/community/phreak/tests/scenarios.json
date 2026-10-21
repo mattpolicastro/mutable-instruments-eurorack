@@ -1,0 +1,27 @@
+[
+  {
+    "id": "smoke",
+    "name": "Package scaffold smoke",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.5,
+        0.5
+      ],
+      "timbre": [
+        0.0,
+        0.0
+      ],
+      "morph": [
+        0.5,
+        0.5
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  }
+]

@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "sdk": "plaits-engine-cpp-v1",
+  "packageType": "community",
+  "id": "community/phreak",
+  "catalogId": "phreak",
+  "version": "0.1.0",
+  "name": "Phreak",
+  "author": "Matt Policastro",
+  "origin": "Community",
+  "license": "MIT",
+  "description": "Phreak telephone-signalling engine scaffold. Currently renders a placeholder sine for SDK smoke validation.",
+  "family": "Experimental",
+  "tags": [
+    "community",
+    "experimental"
+  ],
+  "controls": [
+    {
+      "id": "harmonics",
+      "label": "Harmonics",
+      "description": "Reserved for tone selection; inactive in the scaffold."
+    },
+    {
+      "id": "timbre",
+      "label": "Timbre",
+      "description": "Reserved for bad-line treatment; inactive in the scaffold."
+    },
+    {
+      "id": "morph",
+      "label": "Morph",
+      "description": "Unused; has no effect."
+    },
+    {
+      "id": "macro",
+      "label": "Macro",
+      "description": "Unused; has no effect."
+    }
+  ],
+  "outputs": {
+    "main": "Placeholder sine output for SDK smoke validation",
+    "aux": "Copy of the placeholder sine output"
+  },
+  "source": {
+    "root": "src",
+    "header": "phreak_engine.h",
+    "files": [
+      "phreak_engine.cc"
+    ],
+    "className": "PhreakEngine"
+  },
+  "postProcessing": {
+    "alreadyEnveloped": false,
+    "outGain": 0.8,
+    "auxGain": 0.8
+  },
+  "scenarios": "tests/scenarios.json"
+}
