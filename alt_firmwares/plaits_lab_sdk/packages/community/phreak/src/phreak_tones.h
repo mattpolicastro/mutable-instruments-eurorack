@@ -121,6 +121,8 @@ class ToneVoice {
   float max_increment() const {
     float maximum = 0.0f;
     for (size_t i = 0; i < oscillator_count_; ++i) {
+      // Active reference increments are positive finite floats; reset skips this loop.
+      // mutation-equivalent: >= only adds assignment of an equal value to maximum.
       if (increment_[i] > maximum) maximum = increment_[i];
     }
     return maximum;

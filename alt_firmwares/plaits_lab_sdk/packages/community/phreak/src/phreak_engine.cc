@@ -35,10 +35,14 @@ float PhreakEngine::LimitPitchRatio(float ratio) const {
   float maximum = voices_[active_voice_].max_increment();
   if (fade_sample_ < kCrossfadeSamples) {
     const float incoming = voices_[1 - active_voice_].max_increment();
+    // Both initialized voices have positive finite maxima, so no signed-zero tie.
+    // mutation-equivalent: >= only overwrites maximum with the identical float on a tie.
     if (incoming > maximum) maximum = incoming;
   }
   // One ceiling for every audible component, including both fading voices.
   const float ceiling = 0.45f / maximum;
+  // The ceiling is positive and finite; NaN comparisons are false for both operators.
+  // mutation-equivalent: <= selects ratio instead of ceiling only when they are identical.
   return ratio < ceiling ? ratio : ceiling;
 }
 
