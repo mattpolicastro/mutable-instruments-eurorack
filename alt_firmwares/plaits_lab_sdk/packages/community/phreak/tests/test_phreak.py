@@ -4,6 +4,7 @@
 """Package gates; generated build output lives only in temporary directories."""
 
 import importlib.util
+import hashlib
 from array import array
 from decimal import Decimal
 import json
@@ -891,7 +892,10 @@ class ToneTests(unittest.TestCase):
                 self.assert_reference(channels, reference)
 
     def test_patched_idle_and_gate_length(self):
-        """phreak-articulation/patched-keypress-bursts/patched-idle-and-gate-length"""
+        """phreak-articulation/patched-keypress-bursts/patched-idle-and-gate-length
+
+        phreak-package/repeatable-full-validation-and-listening-notes/host-acceptance-run
+        """
         idle = 7 * 48000
         baseline = None
         for block in (1, 7, 12, 24):
@@ -914,7 +918,10 @@ class ToneTests(unittest.TestCase):
                     self.assertEqual(burst, baseline)
 
     def test_retrigger_and_live_selection(self):
-        """phreak-articulation/patched-keypress-bursts/retrigger-and-live-selection"""
+        """phreak-articulation/patched-keypress-bursts/retrigger-and-live-selection
+
+        phreak-package/repeatable-full-validation-and-listening-notes/host-acceptance-run
+        """
         for edge in (24, 2400, 4704):  # Retrigger during attack, hold and release.
             output = self.directory / "retrigger-reference.f32"
             subprocess.run([str(self.driver), "retrigger-reference", str(edge), str(output)],
@@ -1434,7 +1441,10 @@ class ToneTests(unittest.TestCase):
                 self.assert_tone(self.render(harmonics, 0.44)[960:20160], index)
 
     def test_boundary_jitter_and_reversal(self):
-        """phreak-tones/selection-hysteresis/boundary-jitter-and-reversal"""
+        """phreak-tones/selection-hysteresis/boundary-jitter-and-reversal
+
+        phreak-package/repeatable-full-validation-and-listening-notes/host-acceptance-run
+        """
         for i in range(1, 21):
             b = float32(i / 21)
             low = float32(b - float32(0.001))
@@ -1690,6 +1700,39 @@ class PackageTests(unittest.TestCase):
             command, cwd=REPO_ROOT, text=True, capture_output=True, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_full_host_acceptance(self):
+        """phreak-package/repeatable-full-validation-and-listening-notes/host-acceptance-run"""
+        def snapshot():
+            return {str(path.relative_to(PACKAGE)):
+                    hashlib.sha256(path.read_bytes()).hexdigest()
+                    for path in PACKAGE.rglob("*") if path.is_file()}
+
+        before = snapshot()
+        scenarios = SDK.load_package(str(PACKAGE))["scenarios"]
+        with tempfile.TemporaryDirectory(prefix="phreak-full-") as directory:
+            # Observe the SDK's own cleanup, including renderer, sanitizer
+            # probe, all scenario WAVs and CPU reference builds. No Git checkout
+            # is required, so this also works in the harness's staged copy.
+            environment = dict(os.environ, TMPDIR=directory, TMP=directory,
+                               TEMP=directory, PYTHONDONTWRITEBYTECODE="1")
+            result = subprocess.run([
+                sys.executable, "-B", str(SDK_DIR / "plaits_lab.py"), "check",
+                str(PACKAGE.relative_to(REPO_ROOT)), "--full",
+            ], cwd=REPO_ROOT, env=environment, text=True, capture_output=True,
+               check=False)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            for scenario in scenarios:
+                with self.subTest(scenario=scenario["id"]):
+                    self.assertIn(f"✓ {scenario['id']}: peak ", result.stdout)
+            self.assertIn("✓ sanitizer execution and audio health", result.stdout)
+            self.assertIn("✓ CPU cost (host smoke test only):", result.stdout)
+            # macOS xcrun also caches tool discovery here (xcrun_db); that
+            # toolchain cache belongs to the enclosing TemporaryDirectory.
+            # Every SDK-owned build/render directory must already be gone.
+            self.assertEqual(list(Path(directory).glob("plaits-lab-*")), [])
+        self.assertFalse(Path(directory).exists())
+        self.assertEqual(snapshot(), before, "full check changed package files")
+
     def test_clean_output_manifest_gains(self):
         """phreak-pitch-outputs/clean-and-processed-routing/clean-endpoint-equality"""
         manifest = json.loads((PACKAGE / "plaits-engine.json").read_text())
@@ -1734,12 +1777,23 @@ class PackageTests(unittest.TestCase):
         license_text = (PACKAGE / "LICENSE").read_text()
         self.assertIn("Copyright (c) 2026 Matt Policastro", license_text)
         self.assertIn(" ".join(SDK.MIT_BODY.split()), " ".join(license_text.split()))
-        for source in sorted((PACKAGE / "src").rglob("*")):
+        # The host driver ships with the package too, though only src is
+        # subject to the engine's include/allocation policy.
+        for source in sorted(PACKAGE.rglob("*")):
             if source.suffix in (".h", ".cc"):
                 with self.subTest(source=source.name):
                     text = source.read_text()
                     self.assertIn("// Copyright 2026 Matt Policastro.", text)
                     self.assertEqual(SDK.source_spdx_id(text), "MIT")
+                    if source.is_relative_to(PACKAGE / "src"):
+                        code = SDK.strip_cpp_comments(text)
+                        # SDK policy rejects std:: transcendentals; also catch
+                        # unqualified/C variants. Phreak uses fixed members,
+                        # not even Init-time BufferAllocator storage.
+                        self.assertNotRegex(code, r"\b(?:sin|cos|tan|asin|acos|atan|atan2|"
+                                            r"sinh|cosh|tanh|exp|exp2|log|log2|log10|pow)"
+                                            r"[fl]?\s*\(")
+                        self.assertNotRegex(code, r"\bAllocate\s*(?:<[^>]*>)?\s*\(")
 
         compiler = shlex.split(os.environ.get("CXX", "c++"))
         with tempfile.TemporaryDirectory(prefix="phreak-cxx98-") as directory:
@@ -1754,6 +1808,8 @@ class PackageTests(unittest.TestCase):
                         "-I", str(package["source_root"]), "-c", str(source),
                         "-o", str(Path(directory) / (str(index) + ".o")),
                     ])
+                    self.assertGreater((Path(directory) / (str(index) + ".o")).stat().st_size, 0)
+        self.assertFalse(Path(directory).exists())
 
 
 if __name__ == "__main__":

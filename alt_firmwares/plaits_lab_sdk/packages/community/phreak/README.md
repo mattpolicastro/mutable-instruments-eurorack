@@ -49,6 +49,8 @@ share the timing below, independent of pitch.
 
 Use [AUDITION.md](AUDITION.md) for saved-render commands, separate MAIN/AUX
 listening, numeric tolerances, observations and deferred qualification gates.
+See [VALIDATION.md](VALIDATION.md) for task 6.4 commands, host results and
+artifact checks.
 
 HARMONICS selects the 21-entry North American telephone tone table, using
 `min(20, floor(21 * H))` after clamping H to [0, 1] on the first render after
