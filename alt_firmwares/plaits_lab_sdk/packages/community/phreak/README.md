@@ -1,6 +1,55 @@
 # Phreak
 
 A Plaits Lab community package (`community/phreak`, version `0.1.0`).
+North American dial, DTMF, busy, ringback and FSK tones with an original
+adjustable bad-line sound. FSK entries are individual tones, not a modem or
+protocol implementation; no other locale or Flurry distortion match is claimed.
+
+| SDK control | Panel control | v1 contract |
+| --- | --- | --- |
+| `harmonics` | HARMONICS | Select one of the 21 entries below, with hysteresis and 0.005 s crossfades. |
+| `timbre` | TIMBRE | MAIN only: clean at 0; 300–3400 Hz telephone band-pass at 1/3; soft saturation at 2/3; bit/sample-rate reduction toward 1. |
+| `morph` | MORPH | Has no effect in v1 throughout [0,1]. |
+| `macro` | Fourth control | Has no effect in v1 throughout [0,1], including its neutral midpoint. |
+
+MIDI note 60 (C4) gives the authentic Hz below; FREQUENCY transposes every
+component by the same ratio. MAIN is processed by TIMBRE; AUX is untreated by
+TIMBRE. Both retain pitch, selection fades, unpatched cadence and patched LPG
+bursts. MAIN equals AUX at TIMBRE 0. These are two related mono outputs, not a
+true-stereo mode.
+
+Patched TRIG gives one 0.100 s LPG burst per rising edge, with silence between
+keypresses; gate length does not set duration. Unpatched TRIG sustains dial,
+DTMF and FSK, and runs busy/ringback cadence. Cadence starts on; both outputs
+share the timing below, independent of pitch.
+
+| Index | Entry | SDK ID | HARMONICS centre | Hz at MIDI note 60 | Unpatched timing |
+| --- | --- | --- | --- | --- | --- |
+| 0 | Dial tone | `tone-dial` | 1/42 = 0.023809524 | 350 + 440 | Continuous |
+| 1 | Key 1 | `tone-key-1` | 3/42 = 0.071428571 | 697 + 1209 | Continuous |
+| 2 | Key 2 | `tone-key-2` | 5/42 = 0.119047619 | 697 + 1336 | Continuous |
+| 3 | Key 3 | `tone-key-3` | 7/42 = 0.166666667 | 697 + 1477 | Continuous |
+| 4 | Key 4 | `tone-key-4` | 9/42 = 0.214285714 | 770 + 1209 | Continuous |
+| 5 | Key 5 | `tone-key-5` | 11/42 = 0.261904762 | 770 + 1336 | Continuous |
+| 6 | Key 6 | `tone-key-6` | 13/42 = 0.309523810 | 770 + 1477 | Continuous |
+| 7 | Key 7 | `tone-key-7` | 15/42 = 0.357142857 | 852 + 1209 | Continuous |
+| 8 | Key 8 | `tone-key-8` | 17/42 = 0.404761905 | 852 + 1336 | Continuous |
+| 9 | Key 9 | `tone-key-9` | 19/42 = 0.452380952 | 852 + 1477 | Continuous |
+| 10 | Key 0 | `tone-key-0` | 21/42 = 0.500000000 | 941 + 1336 | Continuous |
+| 11 | Hash (#) | `tone-hash` | 23/42 = 0.547619048 | 941 + 1477 | Continuous |
+| 12 | Star (*) | `tone-star` | 25/42 = 0.595238095 | 941 + 1209 | Continuous |
+| 13 | Busy tone | `tone-busy` | 27/42 = 0.642857143 | 480 + 620 | 0.5 s on / 0.5 s off |
+| 14 | Ringback tone | `tone-ring` | 29/42 = 0.690476190 | 440 + 480 | 2 s on / 4 s off |
+| 15 | Key A | `tone-key-a` | 31/42 = 0.738095238 | 697 + 1633 | Continuous |
+| 16 | Key B | `tone-key-b` | 33/42 = 0.785714286 | 770 + 1633 | Continuous |
+| 17 | Key C | `tone-key-c` | 35/42 = 0.833333333 | 852 + 1633 | Continuous |
+| 18 | Key D | `tone-key-d` | 37/42 = 0.880952381 | 941 + 1633 | Continuous |
+| 19 | FSK space | `tone-fsk-0` | 39/42 = 0.928571429 | 2200 | Continuous |
+| 20 | FSK mark | `tone-fsk-1` | 41/42 = 0.976190476 | 1200 | Continuous |
+
+Use [AUDITION.md](AUDITION.md) for saved-render commands, separate MAIN/AUX
+listening, numeric tolerances, observations and deferred qualification gates.
+
 HARMONICS selects the 21-entry North American telephone tone table, using
 `min(20, floor(21 * H))` after clamping H to [0, 1] on the first render after
 Init or Reset. Each entry's centre is `(index + 0.5) / 21`. Once index `i` is
@@ -159,8 +208,8 @@ Set `CXX` to choose the compiler. Shared repository headers use a trailing enum 
 included with `-isystem`; strict C++98 diagnostics apply to package source.
 The shared resource translation unit is compiled separately because it uses a
 zero-length array extension.
-The full SDK check renders the declared `smoke` scenario with
-sanitizers. Both commands keep generated objects, binaries and WAVs in temporary
+The full SDK check renders all 37 declared scenarios with sanitizers,
+checks audio health and runs a host CPU smoke comparison. Both commands keep generated objects, binaries and WAVs in temporary
 directories and require no catalog registration.
 
 The original package source is MIT licensed, copyright 2026 Matt Policastro;

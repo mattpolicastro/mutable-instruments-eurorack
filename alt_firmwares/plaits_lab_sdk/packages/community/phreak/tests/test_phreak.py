@@ -1576,6 +1576,114 @@ class ToneTests(unittest.TestCase):
                 self.assertEqual(self.render(value, 0.1), self.render(centre, 0.1))
 
 
+class DocumentationTests(unittest.TestCase):
+    @staticmethod
+    def rows(text):
+        return [[cell.strip() for cell in line.strip().strip("|").split("|")]
+                for line in text.splitlines() if line.startswith("| ")]
+
+    def assert_tone_table(self, text):
+        rows = [row for row in self.rows(text) if row[0].isdigit()]
+        self.assertEqual(len(rows), 21)
+        for index, (row, (_, label, frequencies)) in enumerate(zip(rows, TONE_CASES)):
+            with self.subTest(entry=label):
+                self.assertEqual(len(row), 6)
+                self.assertEqual(int(row[0]), index)
+                suffix = {"fsk-space": "fsk-0", "fsk-mark": "fsk-1"}.get(label, label)
+                self.assertEqual(row[2], f"`tone-{suffix}`")
+                fraction, decimal = row[3].split(" = ")
+                self.assertEqual(fraction, f"{2 * index + 1}/42")
+                self.assertAlmostEqual(float(decimal), (index + 0.5) / 21, delta=5e-10)
+                self.assertEqual(tuple(map(int, row[4].split(" + "))), frequencies)
+                expected = {13: "0.5 s on / 0.5 s off", 14: "2 s on / 4 s off"}
+                self.assertEqual(row[5], expected.get(index, "Continuous"))
+
+    def test_read_control_contract(self):
+        """phreak-package/controls-and-output-descriptions/read-the-control-contract"""
+        manifest = SDK.load_package(str(PACKAGE))["manifest"]
+        readme = (PACKAGE / "README.md").read_text()
+        self.assertEqual([c["id"] for c in manifest["controls"]],
+                         ["harmonics", "timbre", "morph", "macro"])
+        control_rows = [row for row in self.rows(readme)
+                        if row[0] in ("`harmonics`", "`timbre`", "`morph`", "`macro`")]
+        self.assertEqual([row[0].strip("`") for row in control_rows],
+                         ["harmonics", "timbre", "morph", "macro"])
+        for control in manifest["controls"][2:]:
+            self.assertIn("no effect", control["description"])
+            self.assertIn("v1", control["description"])
+        for row in control_rows[2:]:
+            self.assertIn("no effect in v1", row[2])
+        for token in ("clean at 0", "300–3400 Hz", "1/3", "saturation", "2/3", "reduction"):
+            self.assertIn(token, manifest["controls"][1]["description"])
+            self.assertIn(token, control_rows[1][2])
+        for channel, treatment in (("main", "processed"), ("aux", "untreated")):
+            self.assertIn(treatment + " by TIMBRE", manifest["outputs"][channel])
+            for term in ("cadence", "LPG bursts"):
+                self.assertIn(term, manifest["outputs"][channel])
+        for term in ("0.100 s", "rising edge", "idle is silent", "Unpatched", "cadence"):
+            self.assertIn(term, manifest["trigger"])
+        self.assertIn("MIDI note 60", manifest["description"])
+        self.assertIn("same ratio", manifest["description"])
+        self.assertEqual(manifest["postProcessing"], {
+            "alreadyEnveloped": True, "outGain": 1.0, "auxGain": 1.0,
+        })
+        self.assert_tone_table(readme)
+
+    def test_audition_notes_and_deferred_checks(self):
+        """phreak-package/repeatable-full-validation-and-listening-notes/audition-notes-and-deferred-hardware-checks"""
+        notes = (PACKAGE / "AUDITION.md").read_text()
+        self.assert_tone_table(notes)
+        rows = {row[0].strip("`"): row for row in self.rows(notes)}
+        for id, (seconds, note, trigger, harmonics, timbre) in ADDITIONAL_AUDITIONS.items():
+            with self.subTest(audition=id):
+                row = rows[id]
+                self.assertEqual(len(row), 7)
+                self.assertEqual(row[1:4], [f"{seconds} s", str(note), str(trigger)])
+                for cell, expected in zip(row[4:6], (harmonics, timbre)):
+                    if isinstance(expected, list):
+                        self.assertEqual(json.loads(cell), expected)
+                    else:
+                        numerator, _, denominator = cell.partition("/")
+                        self.assertAlmostEqual(float(numerator) / float(denominator or 1),
+                                               expected)
+                self.assertTrue(row[6])
+        # Preserve the limitations and an honest, fillable observation record.
+        prose = " ".join(notes.split())
+        for term in ("MAIN is channel 1", "AUX is channel 2", "0.100 ± 0.010 s",
+                     "-80 dBFS", "0.110 s", "within 1 Hz", "0.5 dB", "-40 dBc",
+                     "0.010 s RMS", "Strike", "TRIGGER_UNPATCHED", "following block",
+                     "cannot maintain the patched state", "pending", "recognition",
+                     "switching smoothness", "character", "listener/date", "--full",
+                     "unittest discover", "not hardware approval"):
+            self.assertIn(term, prose)
+        for gate in ("ARM compilation and both firmware layouts",
+                     "Physical Tall Dog clone CPU/audio checks", "Palette submission",
+                     "Approved catalog and publication"):
+            self.assertIn("Deferred", rows[gate][1])
+
+    def test_documented_channel_split_preserves_samples(self):
+        """phreak-package/repeatable-full-validation-and-listening-notes/audition-notes-and-deferred-hardware-checks"""
+        notes = (PACKAGE / "AUDITION.md").read_text()
+        script = notes.split("python3 - <<'PY_SPLIT'\n", 1)[1].split("\nPY_SPLIT", 1)[0]
+        with tempfile.TemporaryDirectory(prefix="phreak-docs-") as directory:
+            output = Path(directory) / "build/phreak"
+            output.mkdir(parents=True)
+            # Distinct signed channel data catches swapped, summed, normalized
+            # or byte-misaligned output in the exact documented command.
+            main = (0, 32767, -32768, 100, -200)
+            aux = (1500, -3000, 999, -1, 0)
+            interleaved = [x for pair in zip(main, aux) for x in pair]
+            with wave.open(str(output / "example.wav"), "wb") as audio:
+                audio.setparams((2, 2, 48000, 0, "NONE", "not compressed"))
+                audio.writeframes(struct.pack("<10h", *interleaved))
+            subprocess.run([sys.executable, "-c", script], cwd=directory, check=True)
+            for label, expected in (("main", main), ("aux", aux)):
+                with wave.open(str(output / "channels" / f"example-{label}.wav"), "rb") as audio:
+                    self.assertEqual((audio.getnchannels(), audio.getsampwidth(),
+                                      audio.getframerate(), audio.getnframes()), (1, 2, 48000, 5))
+                    self.assertEqual(struct.unpack("<5h", audio.readframes(5)), expected)
+
+
 class PackageTests(unittest.TestCase):
     def run_command(self, command):
         result = subprocess.run(

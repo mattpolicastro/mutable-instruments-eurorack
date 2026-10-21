@@ -9,7 +9,7 @@
   "author": "Matt Policastro",
   "origin": "Community",
   "license": "MIT",
-  "description": "Phreak telephone-signalling engine in development. Renders the 21 North American reference tones with equal HARMONICS zones and selection hysteresis.",
+  "description": "21 North American telephone tones with original bad-line treatment on MAIN and clean AUX. MIDI note 60 gives authentic Hz; pitch transposes every component by the same ratio. TRIG selects keypress bursts or unpatched cadence.",
   "family": "Experimental",
   "tags": [
     "community",
@@ -19,28 +19,29 @@
     {
       "id": "harmonics",
       "label": "Harmonics",
-      "description": "Selects one of 21 North American telephone tones in equal zones."
+      "description": "Selects 21 North American telephone tones in equal zones, with hysteresis and 0.005 s crossfades."
     },
     {
       "id": "timbre",
       "label": "Timbre",
-      "description": "Reserved for bad-line treatment; inactive in the scaffold."
+      "description": "MAIN: clean at 0, 300–3400 Hz band-pass at 1/3, soft saturation at 2/3, then bit/sample-rate reduction toward 1."
     },
     {
       "id": "morph",
       "label": "Morph",
-      "description": "Unused; has no effect."
+      "description": "Unused in v1; has no effect across the full range, including the midpoint."
     },
     {
       "id": "macro",
       "label": "Macro",
-      "description": "Unused; has no effect."
+      "description": "Unused in v1; has no effect across the full range, including the midpoint."
     }
   ],
   "outputs": {
-    "main": "Selected reference tone; bad-line treatment is pending",
-    "aux": "Clean selected reference tone"
+    "main": "Selected tone processed by TIMBRE; retains pitch, selection fades, unpatched cadence and patched LPG bursts. Equals AUX at TIMBRE 0.",
+    "aux": "Selected tone untreated by TIMBRE; retains pitch, selection fades, unpatched cadence and patched LPG bursts."
   },
+  "trigger": "Patched TRIG: each rising edge starts a 0.100 s LPG burst; idle is silent. Unpatched: dial/DTMF/FSK sustain; busy 0.5/0.5 s and ringback 2/4 s on/off cadence.",
   "source": {
     "root": "src",
     "header": "phreak_engine.h",
