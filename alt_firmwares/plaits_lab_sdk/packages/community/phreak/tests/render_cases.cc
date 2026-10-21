@@ -44,6 +44,56 @@ bool RenderAudio(plaits::Engine& engine,
 // Host-only driver. Audio is interleaved native float MAIN/AUX at 48 kHz.
 int main(int argc, char** argv) {
   const plaits::phreak::TonePlan& plan = plaits::phreak::kNorthAmerica;
+  if (argc == 2 && std::strcmp(argv[1], "saturation-curve") == 0) {
+    for (int level = 0; level <= 4; ++level) {
+      const float drive = 1.0f + 7.0f * level / 4.0f;
+      for (int n = -201; n <= 201; ++n) {
+        const float x = n == -201 ? -1e6f : n == 201 ? 1e6f : n / 100.0f;
+        std::printf("%.9g %.9g %.9g\n", x, drive,
+            plaits::phreak::SoftSaturate(x, drive));
+      }
+    }
+    return 0;
+  }
+  if (argc == 5 && std::strcmp(argv[1], "saturation-reference") == 0) {
+    const float timbre = static_cast<float>(std::atof(argv[2]));
+    if (!(timbre >= 1.0f / 3.0f && timbre <= 2.0f / 3.0f)) return 1;
+    FILE* input = std::fopen(argv[3], "rb");
+    FILE* output = std::fopen(argv[4], "wb");
+    if (!input || !output) return 1;
+    // Independent steady-state oracle using literal filter/curve parameters.
+    // Read the engine's clean AUX to isolate treatment from oscillator error.
+    // The second reference deliberately reverses the nonlinear stage order.
+    stmlib::Svf high[2], low[2];
+    for (int i = 0; i < 2; ++i) {
+      high[i].Reset();
+      low[i].Reset();
+      high[i].set_f_q<stmlib::FREQUENCY_ACCURATE>(300.0f / 48000, 0.70710678f);
+      low[i].set_f_q<stmlib::FREQUENCY_ACCURATE>(3400.0f / 48000, 0.70710678f);
+    }
+    const double u = 3.0 * timbre - 1.0;
+    const double drive = 1.0 + 7.0 * u;
+    float channels[2];
+    while (std::fread(channels, sizeof(float), 2, input) == 2) {
+      const float dry = channels[1];
+      const float filtered = low[0].Process<stmlib::FILTER_MODE_LOW_PASS>(
+          high[0].Process<stmlib::FILTER_MODE_HIGH_PASS>(dry));
+      const double driven = drive * filtered;
+      const double saturated = 0.8 * driven / (1.0 + std::fabs(driven));
+      const double dry_driven = drive * dry;
+      const float reversed = static_cast<float>(dry + u * (
+          0.8 * dry_driven / (1.0 + std::fabs(dry_driven)) - dry));
+      const float samples[] = {
+        static_cast<float>(filtered + u * (saturated - filtered)),
+        low[1].Process<stmlib::FILTER_MODE_LOW_PASS>(
+            high[1].Process<stmlib::FILTER_MODE_HIGH_PASS>(reversed))
+      };
+      if (std::fwrite(samples, sizeof(float), 2, output) != 2) return 1;
+    }
+    const bool ok = !std::ferror(input);
+    std::fclose(input);
+    return std::fclose(output) == 0 && ok ? 0 : 1;
+  }
   if (argc >= 4 && std::strcmp(argv[1], "bandpass") == 0) {
     FILE* output = std::fopen(argv[2], "wb");
     if (!output) return 1;
@@ -246,8 +296,11 @@ int main(int argc, char** argv) {
         "       %s bursts|lpg-reference INDEX SECONDS OUTPUT BLOCK_SIZE\n"
         "       %s retrigger-reference EDGE_FRAME OUTPUT\n"
         "       %s neutral baseline|morph|macro unpatched|triggered OUTPUT\n"
-        "       %s bandpass OUTPUT HZ [HZ ...]\n",
-        argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
+        "       %s bandpass OUTPUT HZ [HZ ...]\n"
+        "       %s saturation-curve\n"
+        "       %s saturation-reference TIMBRE INPUT OUTPUT\n",
+        argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0],
+        argv[0], argv[0]);
     return 1;
   }
   const double seconds = std::atof(argv[2]);

@@ -55,9 +55,15 @@ From 0 to 1/3, TIMBRE linearly mixes in a fixed 300 Hz high-pass followed by
 a 3400 Hz low-pass, both second-order SVFs with Q approximately 0.707.
 Cutoffs do not transpose with pitch. Mix changes settle over 5 ms, including
 returning to exact bypass; Reset clears the mix and filter history.
-The filters use stmlib's algebraic frequency approximation. Saturation and
-digital reduction remain subsequent tasks; TIMBRE above 1/3 currently retains
-the fully filtered signal.
+The filters use stmlib's algebraic frequency approximation. From 1/3 to 2/3,
+TIMBRE retains filtering and mixes in the odd soft curve
+`0.8*(d*x)/(1+abs(d*x))`, with wet amount `u=3*TIMBRE-1` and drive `d=1+7*u`.
+Saturation follows filtering. Its mix and drive ramp together over 5 ms from
+their current values, including changes during an unfinished ramp; repeated
+control blocks do not restart the transition. Reset clears this state too.
+At 1/3 saturation is bypassed; at 2/3 it is fully wet with drive 8 and a peak
+below 0.8. Digital reduction remains a subsequent task; TIMBRE above 2/3
+currently retains the fully filtered and saturated signal.
 MORPH and macro are deliberately unused across their full ranges.
 
 From your eurorack checkout:
@@ -115,6 +121,14 @@ both -3 dB edges relative to the measured passband peak. Partial mixes, reset
 recovery and the 5 ms return to bypass are also checked across block sizes.
 Treated MAIN is checked against full scale, allowing filter-onset overshoot
 above the clean oscillator's 0.5 peak; AUX retains its clean bound.
+Saturation tests compare 2 s FSK mark renders at TIMBRE 1/3 and 2/3 for a
+retained 1200 Hz fundamental, at least 6 dB relative growth of the third
+harmonic, DC below 0.01, bounded level and identical clean AUX. Direct curve
+tests cover odd symmetry, monotonicity and the 0.8 bound. An independent
+filter-then-drive reference checks intermediate and full saturation within
+1e-6 and distinguishes the reversed stage order. Sample-timed transitions
+check mix/drive smoothing, mid-ramp retargets, exact filter-only recovery,
+reset and identical results across all four block sizes.
 The timeline driver accepts `trigger=low`, `trigger=high`, `trigger=rise`,
 `trigger=unpatched`, `note=MIDI`, and `timbre=VALUE` tokens alongside
 sample-timed selections and `reset`.

@@ -315,6 +315,111 @@ class ToneTests(unittest.TestCase):
             self.assertEqual(main, expected)
             self.assertEqual(aux, dry)
 
+    def test_soft_saturation_curve(self):
+        """phreak-bad-line/progressive-soft-saturation/saturation-after-filtering"""
+        result = subprocess.run([str(self.driver), "saturation-curve"],
+                                check=True, text=True, capture_output=True)
+        values = {}
+        for row in result.stdout.splitlines():
+            x, drive, y = map(float, row.split())
+            self.assertTrue(math.isfinite(y))
+            self.assertLessEqual(abs(y), 0.8)
+            expected = 0.8 * (drive * x) / (1 + abs(drive * x))
+            self.assertAlmostEqual(y, expected, delta=1e-6)
+            values[x, drive] = y
+        self.assertEqual(len(values), 403 * 5)
+        for (x, drive), y in values.items():
+            self.assertAlmostEqual(y, -values[-x, drive], delta=1e-6)
+        for drive in (1, 2.75, 4.5, 6.25, 8):
+            self.assertEqual(values[0, drive], 0)
+            positive = sorted((x, y) for (x, d), y in values.items()
+                              if d == drive and x >= 0)
+            self.assertTrue(all(a[1] < b[1] for a, b in zip(positive, positive[1:])))
+
+    def test_saturation_harmonics_dc_and_level(self):
+        """phreak-bad-line/progressive-soft-saturation/saturation-after-filtering"""
+        h = 41 / 42
+        clean = self.render_treatment([(h, 96000)])
+        ratios = []
+        for timbre in (1 / 3, 2 / 3):
+            with self.subTest(timbre=timbre):
+                main, aux = self.render_treatment([f"timbre={timbre}", (h, 96000)])
+                self.assertEqual(aux, clean[1])
+                self.assert_tone(aux[960:], 20)
+                steady = main[960:]
+                self.assertLess(abs(sum(steady) / len(steady)), 0.01)
+                self.assertLess(max(abs(x) for x in main), 1.0)
+                amplitudes, _ = sine_fit(steady, (1200, 2400, 3600))
+                self.assertGreater(amplitudes[0], 0.3)  # Fundamental retained.
+                self.assertLess(amplitudes[1] / amplitudes[0], 0.01)
+                ratios.append(amplitudes[2] / amplitudes[0])
+                if timbre == 2 / 3:
+                    self.assertLess(max(abs(x) for x in steady), 0.8)
+                    # Every eight-sample window changes internally: no upper-
+                    # third hold or quantization is part of this stage.
+                    self.assertTrue(all(len(set(steady[n:n + 8])) > 1
+                                        for n in range(0, len(steady) - 7, 8)))
+        self.assertGreaterEqual(20 * math.log10(ratios[1] / max(ratios[0], 1e-12)), 6)
+
+    def test_saturation_filter_before_drive_reference(self):
+        """phreak-bad-line/progressive-soft-saturation/saturation-after-filtering"""
+        for timbre in (5 / 12, 0.5, 7 / 12, 2 / 3):
+            with self.subTest(timbre=timbre):
+                main, _ = self.render_treatment([
+                    f"timbre={timbre}", (41 / 42, 96000),
+                ])
+                output = self.directory / "saturation-reference.f32"
+                subprocess.run([str(self.driver), "saturation-reference", str(timbre),
+                                str(self.directory / "timeline.f32"), str(output)],
+                               check=True)
+                reference = array("f")
+                reference.frombytes(output.read_bytes())
+                self.assertEqual(len(reference), 192000)
+                ordered, reversed_order = reference[0::2], reference[1::2]
+                self.assertLessEqual(max(abs(m - r) for m, r in
+                                         zip(main[960:], ordered[960:])), 1e-6)
+                # Ensure the oracle discriminates saturation before filtering.
+                self.assertGreater(rms([a - b for a, b in
+                                        zip(ordered[960:], reversed_order[960:])]), 0.001)
+
+    def test_saturation_mix_and_drive_smoothing(self):
+        """phreak-bad-line/progressive-soft-saturation/saturation-after-filtering"""
+        h = 41 / 42
+        # Include reversals during a ramp, intermediate/full amounts, repeated
+        # control blocks, and exact recovery to a purely filtered endpoint.
+        segments = [(1 / 3, 1200), (2 / 3, 73), (0.5, 317), (2 / 3, 480),
+                    (1 / 3, 480), (2 / 3, 29), (1 / 3, 400)]
+        frames = sum(count for _, count in segments)
+        filtered, clean = self.render_treatment([f"timbre={1 / 3}", (h, frames)])
+        expected, events = [], []
+        position, mix = 0, 0.0
+        for timbre, count in segments:
+            events.extend([f"timbre={timbre}", (h, count)])
+            target = max(0, min(1, float32(float32(3 * float32(timbre)) - 1)))
+            start = mix
+            for n in range(count):
+                mix = start + (target - start) * min((n + 1) / 240, 1)
+                x = filtered[position]
+                driven = (1 + 7 * mix) * x
+                expected.append(x + mix * (0.8 * driven / (1 + abs(driven)) - x))
+                position += 1
+        baseline = None
+        for block in (1, 7, 12, 24):
+            with self.subTest(block=block):
+                main, aux = self.render_treatment(events, block_size=block)
+                self.assertEqual(aux, clean)
+                self.assertLessEqual(max(abs(a - b) for a, b in zip(main, expected)), 1e-6)
+                self.assertEqual(main[-160:], filtered[-160:])
+                if baseline is not None:
+                    self.assertEqual(main, baseline)
+                baseline = main
+                fresh = self.render_treatment(["timbre=0.5", (h, 1200)], block_size=block)
+                reset = self.render_treatment([
+                    f"timbre={2 / 3}", (h, 73), "reset", "timbre=0.5", (h, 1200),
+                ], block_size=block)
+                for actual, reference in zip(reset, fresh):
+                    self.assertEqual(actual[73:], reference)
+
     def test_all_entry_clean_channel_equality(self):
         """phreak-pitch-outputs/clean-and-processed-routing/clean-endpoint-equality"""
         for index in range(21):
@@ -372,7 +477,10 @@ class ToneTests(unittest.TestCase):
                 with self.subTest(mode=mode, control=control):
                     subprocess.run([str(self.driver), "neutral", control, mode,
                                     str(output)], check=True)
-                    channels = self.read_channels(output, 96000)
+                    # At TIMBRE 0.5 the specified drive can exceed the clean
+                    # oscillator's 0.5 peak. Keep the full-scale MAIN bound,
+                    # clean AUX bound, and unchanged neutrality comparisons.
+                    channels = self.read_channels(output, 96000, main_peak=1.0)
                     if baseline is None:
                         baseline = channels
                         for samples in baseline:
