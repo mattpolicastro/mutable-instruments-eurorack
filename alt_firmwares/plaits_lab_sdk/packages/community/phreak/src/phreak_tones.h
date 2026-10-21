@@ -64,6 +64,36 @@ inline size_t NominalToneIndex(const TonePlan& plan, float harmonics) {
   return index < plan.count ? index : plan.count - 1;
 }
 
+// Retain the latest accepted request independently of oscillator state.
+// A selector consumes one nonempty plan until Reset.
+class ToneSelector {
+ public:
+  ToneSelector() { Reset(); }
+  void Reset() {
+    initialized_ = false;
+    index_ = 0;
+  }
+  size_t Process(const TonePlan& plan, float harmonics) {
+    if (!(harmonics > 0.0f)) harmonics = 0.0f;
+    if (harmonics > 1.0f) harmonics = 1.0f;
+    const float margin = 0.002f;
+    if (!initialized_
+        || (index_ + 1 < plan.count
+            && harmonics >= static_cast<float>(index_ + 1) / plan.count + margin)
+        || (index_ > 0
+            && harmonics < static_cast<float>(index_) / plan.count - margin)) {
+      // Jump directly to the nominal zone, even across multiple entries.
+      index_ = NominalToneIndex(plan, harmonics);
+      initialized_ = true;
+    }
+    return index_;
+  }
+
+ private:
+  bool initialized_;
+  size_t index_;
+};
+
 // Fixed storage for at most two sines; SetTone preserves oscillator phases.
 class ToneVoice {
  public:

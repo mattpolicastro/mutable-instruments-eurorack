@@ -20,6 +20,7 @@ class PhreakEngine : public Engine {
       size_t size, bool* already_enveloped);
 
  private:
+  phreak::ToneSelector selector_;
   phreak::ToneVoice voice_;
   DISALLOW_COPY_AND_ASSIGN(PhreakEngine);
 };

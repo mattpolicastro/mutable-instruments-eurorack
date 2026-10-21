@@ -7,6 +7,28 @@
 
 #include "phreak_engine.h"
 
+bool RenderAudio(plaits::Engine& engine,
+    const plaits::EngineParameters& parameters, size_t frames, FILE* output) {
+  for (size_t position = 0; position < frames;) {
+    float main[plaits::kBlockSize], aux[plaits::kBlockSize];
+    float interleaved[2 * plaits::kBlockSize];
+    const size_t remaining = frames - position;
+    const size_t size = remaining < plaits::kBlockSize
+        ? remaining : plaits::kBlockSize;
+    bool enveloped = false;
+    engine.Render(parameters, main, aux, size, &enveloped);
+    for (size_t i = 0; i < size; ++i) {
+      interleaved[2 * i] = main[i];
+      interleaved[2 * i + 1] = aux[i];
+    }
+    if (std::fwrite(interleaved, sizeof(float), 2 * size, output) != 2 * size) {
+      return false;
+    }
+    position += size;
+  }
+  return true;
+}
+
 // Host-only driver. Audio is interleaved native float MAIN/AUX at 48 kHz.
 int main(int argc, char** argv) {
   const plaits::phreak::TonePlan& plan = plaits::phreak::kNorthAmerica;
@@ -29,9 +51,12 @@ int main(int argc, char** argv) {
     }
     return 0;
   }
-  if (argc != 4) {
+  const bool steps = argc >= 5 && std::strcmp(argv[1], "steps") == 0;
+  if (!steps && argc != 4) {
     std::fprintf(stderr,
-        "usage: %s table | index HARMONICS | HARMONICS SECONDS OUTPUT\n", argv[0]);
+        "usage: %s table | index HARMONICS | HARMONICS SECONDS OUTPUT\n"
+        "       %s steps SECONDS_PER_STEP OUTPUT HARMONICS [HARMONICS | reset ...]\n",
+        argv[0], argv[0]);
     return 1;
   }
   const double seconds = std::atof(argv[2]);
@@ -41,29 +66,23 @@ int main(int argc, char** argv) {
   if (!output) return 1;
   plaits::EngineParameters parameters = plaits::EngineParameters();
   parameters.note = 60.0f;
-  parameters.harmonics = static_cast<float>(std::atof(argv[1]));
   parameters.timbre = 0.0f;
   parameters.morph = parameters.macro = 0.5f;
   parameters.trigger = plaits::TRIGGER_UNPATCHED;
   plaits::PhreakEngine engine;
   engine.Init(NULL);  // The package needs no allocator storage.
-  for (size_t position = 0; position < frames;) {
-    float main[plaits::kBlockSize], aux[plaits::kBlockSize];
-    float interleaved[2 * plaits::kBlockSize];
-    const size_t remaining = frames - position;
-    const size_t size = remaining < plaits::kBlockSize
-        ? remaining : plaits::kBlockSize;
-    bool enveloped = false;
-    engine.Render(parameters, main, aux, size, &enveloped);
-    for (size_t i = 0; i < size; ++i) {
-      interleaved[2 * i] = main[i];
-      interleaved[2 * i + 1] = aux[i];
+  const int first = steps ? 4 : 1;
+  const int last = steps ? argc : 2;
+  for (int step = first; step < last; ++step) {
+    if (steps && std::strcmp(argv[step], "reset") == 0) {
+      engine.Reset();
+      continue;
     }
-    if (std::fwrite(interleaved, sizeof(float), 2 * size, output) != 2 * size) {
+    parameters.harmonics = static_cast<float>(std::atof(argv[step]));
+    if (!RenderAudio(engine, parameters, frames, output)) {
       std::fclose(output);
       return 1;
     }
-    position += size;
   }
   return std::fclose(output) == 0 ? 0 : 1;
 }

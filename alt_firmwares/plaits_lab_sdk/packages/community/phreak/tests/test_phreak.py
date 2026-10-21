@@ -10,6 +10,7 @@ import math
 import os
 from pathlib import Path
 import shlex
+import struct
 import subprocess
 import sys
 import tempfile
@@ -51,6 +52,17 @@ TONE_CASES = [
     ("phreak-tones/north-american-tone-table/fsk-space", "fsk-space", (2200,)),
     ("phreak-tones/north-american-tone-table/fsk-mark", "fsk-mark", (1200,)),
 ]
+
+
+def float32(value):
+    """Round each operation as the engine's float control arithmetic does."""
+    return struct.unpack("=f", struct.pack("=f", value))[0]
+
+
+def adjacent_float32(value, direction):
+    """Adjacent positive float, for the internal selection thresholds."""
+    bits = struct.unpack("=I", struct.pack("=f", value))[0]
+    return struct.unpack("=f", struct.pack("=I", bits + direction))[0]
 
 
 def sine_fit(samples, frequencies):
@@ -111,11 +123,32 @@ class ToneTests(unittest.TestCase):
         output = self.directory / "samples.f32"
         subprocess.run([str(self.driver), str(harmonics), str(seconds), str(output)],
                        check=True)
+        return self.read_aux(output, int(seconds * 48000))
+
+    def render_steps(self, harmonics, seconds=0.020):
+        output = self.directory / "steps.f32"
+        subprocess.run([str(self.driver), "steps", str(seconds), str(output),
+                        *map(str, harmonics)], check=True)
+        frames = int(seconds * 48000)
+        count = sum(value != "reset" for value in harmonics)
+        aux = self.read_aux(output, count * frames)
+        return [aux[start:start + frames] for start in range(0, len(aux), frames)]
+
+    def read_aux(self, output, frames):
         samples = array("f")
         samples.frombytes(output.read_bytes())
-        self.assertEqual(len(samples), 2 * int(seconds * 48000))
+        self.assertEqual(len(samples), 2 * frames)
         self.assertTrue(all(math.isfinite(x) and abs(x) <= 0.500001 for x in samples))
         return samples[1::2]
+
+    def assert_tone(self, samples, index):
+        frequencies = TONE_CASES[index][2]
+        amplitudes, residual = sine_fit(samples, frequencies)
+        level = 0.25 if len(frequencies) == 2 else 0.5
+        for amplitude in amplitudes:
+            self.assertAlmostEqual(amplitude, level, delta=0.001)
+        self.assertLessEqual(20 * math.log10(max(amplitudes) / min(amplitudes)), 0.5)
+        self.assertLess(residual / (min(amplitudes) / math.sqrt(2)), 0.01)
 
     def test_north_american_table_metadata(self):
         # Check labels/counts independently of rendering: an invalid count must
@@ -139,14 +172,77 @@ class ToneTests(unittest.TestCase):
                 duration = {13: 4, 14: 12}.get(index, 2)
                 aux = self.render((index + 0.5) / 21, duration)
                 # All entries are on here, including future busy/ring cadences.
-                amplitudes, residual = sine_fit(aux[960:20160], frequencies)
-                level = 0.25 if len(frequencies) == 2 else 0.5
-                for amplitude in amplitudes:
-                    self.assertAlmostEqual(amplitude, level, delta=0.001)
-                self.assertLessEqual(20 * math.log10(max(amplitudes) / min(amplitudes)), 0.5)
                 # Fitting exact reference Hz over 400 ms with this residual bound
                 # constrains tuning more tightly than 1 Hz and spurs below -40 dBc.
-                self.assertLess(residual / (min(amplitudes) / math.sqrt(2)), 0.01)
+                self.assert_tone(aux[960:20160], index)
+
+    def test_all_centres_after_selection_changes(self):
+        # The same 21 scenario IDs apply after upward and downward changes too.
+        indices = list(range(21)) + list(reversed(range(20)))
+        steps = self.render_steps([(i + 0.5) / 21 for i in indices], 0.44)
+        for index, samples in zip(indices, steps):
+            with self.subTest(scenario=TONE_CASES[index][0], index=index):
+                self.assert_tone(samples[960:20160], index)
+
+    def test_initial_boundaries_and_endpoints(self):
+        """phreak-tones/equal-selection-zones/initial-boundaries-and-endpoints"""
+        cases = [(-0.1, 0), (0, 0), (1, 20), (1.1, 20)]
+        cases.extend((float32(i / 21), i) for i in range(1, 21))
+        for harmonics, index in cases:
+            with self.subTest(harmonics=harmonics, index=index):
+                self.assert_tone(self.render(harmonics, 0.44)[960:20160], index)
+
+    def test_boundary_jitter_and_reversal(self):
+        """phreak-tones/selection-hysteresis/boundary-jitter-and-reversal"""
+        for i in range(1, 21):
+            b = float32(i / 21)
+            low = float32(b - float32(0.001))
+            high = float32(b + float32(0.001))
+            controls = [low] + [low, high] * 10 + [
+                float32(b + float32(0.002)),
+                float32(b - float32(0.002)),
+                float32(b - float32(0.003)),
+            ]
+            expected = [i - 1] * 21 + [i, i, i - 1]
+            steps = self.render_steps(controls)
+            # First dwell establishes selection; all measured windows are past
+            # startup and allow 6 ms for the separately implemented 5 ms fade.
+            for step in range(1, len(steps)):
+                with self.subTest(boundary=i, step=step, harmonics=controls[step]):
+                    self.assert_tone(steps[step][288:], expected[step])
+
+    def test_hysteresis_exact_thresholds_and_adjacent_floats(self):
+        """phreak-tones/selection-hysteresis/boundary-jitter-and-reversal"""
+        for i in range(1, 21):
+            b = float32(i / 21)
+            up = float32(b + float32(0.002))
+            down = float32(b - float32(0.002))
+            controls = [(i - 0.5) / 21,
+                        adjacent_float32(up, -1), up, adjacent_float32(up, 1),
+                        adjacent_float32(down, 1), down, adjacent_float32(down, -1)]
+            expected = [i - 1, i - 1, i, i, i, i, i - 1]
+            steps = self.render_steps(controls)
+            for step in range(1, len(steps)):
+                with self.subTest(boundary=i, step=step, harmonics=controls[step]):
+                    self.assert_tone(steps[step][288:], expected[step])
+
+    def test_reset_clears_selection_history(self):
+        """phreak-tones/equal-selection-zones/initial-boundaries-and-endpoints"""
+        for i in range(1, 21):
+            b = float32(i / 21)
+            low, high = b - 0.001, b + 0.001
+            steps = self.render_steps([low, "reset", high, low, "reset", low], 0.1)
+            for step, index in enumerate([i - 1, i, i, i - 1]):
+                with self.subTest(boundary=i, step=step):
+                    self.assert_tone(steps[step][960:], index)
+
+    def test_nonadjacent_selection_and_endpoint_reversal(self):
+        # Check settled destinations only; direct-jump crossfades are task 2.2.
+        controls = [1 / 42, 41 / 42, 1 / 42, 1.1, -0.1, 35 / 42, 11 / 42]
+        indices = [0, 20, 0, 20, 0, 17, 5]
+        for step, (samples, index) in enumerate(zip(self.render_steps(controls, 0.1), indices)):
+            with self.subTest(step=step, index=index):
+                self.assert_tone(samples[960:], index)
 
     def test_nominal_selector_indices(self):
         # Direct helper checks make endpoint failures deterministic even when a

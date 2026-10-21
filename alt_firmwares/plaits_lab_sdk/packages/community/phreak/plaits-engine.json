@@ -9,7 +9,7 @@
   "author": "Matt Policastro",
   "origin": "Community",
   "license": "MIT",
-  "description": "Phreak telephone-signalling engine in development. Renders the 21 North American reference tones with nominal HARMONICS selection.",
+  "description": "Phreak telephone-signalling engine in development. Renders the 21 North American reference tones with equal HARMONICS zones and selection hysteresis.",
   "family": "Experimental",
   "tags": [
     "community",
