@@ -44,6 +44,44 @@ bool RenderAudio(plaits::Engine& engine,
 // Host-only driver. Audio is interleaved native float MAIN/AUX at 48 kHz.
 int main(int argc, char** argv) {
   const plaits::phreak::TonePlan& plan = plaits::phreak::kNorthAmerica;
+  if (argc == 2 && std::strcmp(argv[1], "quantization-grid") == 0) {
+    for (int bits = 5; bits <= 12; ++bits) {
+      for (int n = -2400; n <= 2400; ++n) {
+        const float x = n / 2000.0f;
+        std::printf("%d %.9g %.9g\n", bits, x,
+            plaits::phreak::Quantize(x, bits));
+      }
+    }
+    return 0;
+  }
+  if (argc == 5 && std::strcmp(argv[1], "treatment-sweep") == 0) {
+    const bool sweep = std::strcmp(argv[2], "sweep") == 0;
+    const bool patched = std::strcmp(argv[3], "triggered") == 0;
+    if ((!sweep && std::strcmp(argv[2], "clean") != 0)
+        || (!patched && std::strcmp(argv[3], "unpatched") != 0)) return 1;
+    FILE* output = std::fopen(argv[4], "wb");
+    if (!output) return 1;
+    plaits::PhreakEngine engine;
+    engine.Init(NULL);
+    plaits::EngineParameters p = plaits::EngineParameters();
+    p.note = 60.0f;
+    p.harmonics = 11.0f / 42.0f;
+    p.morph = p.macro = 0.5f;
+    const size_t leg = 6 * 48000;
+    const size_t block = plaits::kBlockSize;
+    // Both endpoints included in each 6 s leg, followed by 100 ms clean.
+    for (size_t n = 0; n < 2 * leg + 4800; n += block) {
+      p.timbre = !sweep || n >= 2 * leg ? 0.0f
+          : n < leg ? static_cast<float>(n) / (leg - block)
+          : 1.0f - static_cast<float>(n - leg) / (leg - block);
+      const size_t age = n % 24000;
+      p.trigger = !patched ? plaits::TRIGGER_UNPATCHED
+          : age < 6000 ? plaits::TRIGGER_HIGH : plaits::TRIGGER_LOW;
+      if (patched && age == 0) p.trigger |= plaits::TRIGGER_RISING_EDGE;
+      if (!RenderAudio(engine, p, block, output)) return 1;
+    }
+    return std::fclose(output) == 0 ? 0 : 1;
+  }
   if (argc == 2 && std::strcmp(argv[1], "saturation-curve") == 0) {
     for (int level = 0; level <= 4; ++level) {
       const float drive = 1.0f + 7.0f * level / 4.0f;

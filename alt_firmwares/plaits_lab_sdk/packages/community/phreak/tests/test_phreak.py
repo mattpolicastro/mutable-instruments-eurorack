@@ -224,7 +224,7 @@ class ToneTests(unittest.TestCase):
                     self.assert_tone(samples, 20)
 
         # Reset must discard treatment mix/filter history as well as voices.
-        for timbre in (0, 1 / 3):
+        for timbre in (0, 1 / 3, 2 / 3, 1):
             with self.subTest(reset_timbre=timbre):
                 fresh = self.render_treatment([f"timbre={timbre}", (h, 96000)])
                 reset = self.render_treatment([
@@ -233,6 +233,231 @@ class ToneTests(unittest.TestCase):
                 ])
                 for actual, expected in zip(reset, fresh):
                     self.assertEqual(actual[4813:], expected)
+
+    def test_bad_line_crushed_endpoint(self):
+        """phreak-bad-line/upper-range-digital-reduction/crushed-endpoint"""
+        h = 41 / 42
+        saturated, clean = self.render_treatment([f"timbre={2 / 3}", (h, 96000)])
+        baseline = None
+        for block in (1, 7, 12, 24):
+            with self.subTest(block=block):
+                main, aux = self.render_treatment(["timbre=1", (h, 96000)],
+                                                   block_size=block)
+                self.assertEqual(aux, clean)
+                self.assert_tone(aux[960:], 20)
+                steady = main[960:]
+                self.assertLessEqual(max(abs(x - round(x * 31 / 2) * 2 / 31)
+                                         for x in steady), 1 / 32768)
+                changes = [n for n in range(961, len(main)) if main[n] != main[n - 1]]
+                self.assertGreater(len(changes), 5000)  # Reject frozen output.
+                self.assertEqual({n % 8 for n in changes}, {0})
+                for n in range(960, len(main), 8):
+                    self.assertEqual(len(set(main[n:n + 8])), 1)
+                    # Correct grid value comes from the filtered/saturated input
+                    # at the update, not a reduced clean tone or a moving average.
+                    expected = round(saturated[n] * 31 / 2) * 2 / 31
+                    self.assertAlmostEqual(main[n], expected, delta=1e-6)
+                if baseline is not None:
+                    self.assertEqual(main, baseline)
+                baseline = main
+        self.assertTrue(all(len(set(saturated[n:n + 8])) > 1
+                            for n in range(960, 96000, 8)))
+        # 6 kHz update images around the 1200 Hz tone are absent from the
+        # saturation-only comparison; these are not just its odd harmonics.
+        crushed_images, _ = sine_fit(baseline[960:], (1200, 4800, 7200))
+        saturated_images, _ = sine_fit(saturated[960:], (1200, 4800, 7200))
+        for image, reference in zip(crushed_images[1:], saturated_images[1:]):
+            self.assertGreater(image, 0.01)
+            self.assertGreater(image, 10 * reference)
+
+    def test_bad_line_signed_quantization(self):
+        """phreak-bad-line/upper-range-digital-reduction/crushed-endpoint"""
+        rows = subprocess.check_output([str(self.driver), "quantization-grid"],
+                                       text=True).splitlines()
+        self.assertEqual(len(rows), 8 * 4801)
+        values = {}
+        for row in rows:
+            bits, x, y = map(float, row.split())
+            step = 2 / (2 ** int(bits) - 1)
+            magnitude = math.floor(min(abs(x), 1) / step + 0.5) * step
+            expected = math.copysign(min(magnitude, 1), x)
+            self.assertAlmostEqual(y, expected, delta=1e-6)
+            self.assertLessEqual(abs(y), 1)
+            values[bits, x] = y
+        for (bits, x), y in values.items():
+            self.assertEqual(y, -values[bits, -x])
+
+    def test_bad_line_reduction_mix_hold_and_reset(self):
+        """phreak-bad-line/upper-range-digital-reduction/crushed-endpoint
+        phreak-bad-line/clean-endpoint-and-band-limitation/true-clean-endpoint
+        """
+        h = 41 / 42
+        # Visit every resolution, then interrupt ramps and reverse to the exact
+        # saturation-only endpoint. Event positions do not align to hold clocks.
+        amounts = [(i + 0.5) / 7 for i in range(7)] + [1]
+        segments = [(2 / 3, 1200)] + [((2 + v) / 3, 481) for v in amounts]
+        segments += [(1, 73), (0.8, 317), (1, 480), (2 / 3, 480),
+                     (1, 29), (2 / 3, 400)]
+        frames = sum(count for _, count in segments)
+        saturated, clean = self.render_treatment([f"timbre={2 / 3}", (h, frames)])
+        expected, events = [], []
+        position, mix, target, held, remaining, length = 0, 0.0, 0.0, 0.0, 0, 1
+        for timbre, count in segments:
+            events.extend([f"timbre={timbre}", (h, count)])
+            next_target = max(0, min(1, float32(float32(3 * float32(timbre)) - 2)))
+            changed = next_target != target
+            target = next_target
+            resolution = int(float32(7 * target))
+            next_length = 1 + resolution
+            if next_length != length:
+                remaining = 0
+            length = next_length
+            step = 2 / (2 ** (12 - resolution) - 1)
+            start = mix
+            for n in range(count):
+                if changed:
+                    mix = start + (target - start) * min((n + 1) / 240, 1)
+                x = saturated[position]
+                if mix == 0:
+                    remaining, held = 0, 0.0
+                else:
+                    if remaining == 0:
+                        held = math.copysign(math.floor(abs(x) / step + 0.5) * step, x)
+                        remaining = length
+                    remaining -= 1
+                expected.append(x + mix * (held - x))
+                position += 1
+        baseline = None
+        for block in (1, 7, 12, 24):
+            with self.subTest(block=block):
+                main, aux = self.render_treatment(events, block_size=block)
+                self.assertEqual(aux, clean)
+                self.assertLessEqual(max(abs(a - b) for a, b in zip(main, expected)), 1e-6)
+                self.assertEqual(main[-160:], saturated[-160:])
+                if baseline is not None:
+                    self.assertEqual(main, baseline)
+                baseline = main
+                # Reset while a hold and mix ramp are both unfinished.
+                fresh = self.render_treatment(["timbre=1", (h, 1200)], block_size=block)
+                reset = self.render_treatment([
+                    "timbre=0.9", (h, 73), "reset", "timbre=1", (h, 1200),
+                ], block_size=block)
+                for actual, reference in zip(reset, fresh):
+                    self.assertEqual(actual[73:], reference)
+
+    def assert_treated_burst_schedule(self, channels):
+        # Treatment can change levels/spectra, but never the shared deadline.
+        for samples in channels:
+            for edge in range(0, len(samples), 24000):
+                burst = samples[edge:edge + 24000]
+                threshold = 0.1 * rms(burst[960:4320])
+                self.assertGreater(threshold, 0.005)
+                active = [n for n in range(0, len(burst), 240)
+                          if rms(burst[n:n + 240]) > threshold]
+                self.assertEqual(active[0], 0)
+                self.assertAlmostEqual((active[-1] + 240) / 48000, 0.100, delta=0.010)
+                self.assertEqual(active, list(range(0, active[-1] + 240, 240)))
+                for n in range(5280, len(burst), 240):
+                    self.assertLess(rms(burst[n:n + 240]), 1e-4)
+
+    def test_bad_line_aux_independence_at_stage_checkpoints(self):
+        """phreak-pitch-outputs/clean-and-processed-routing/aux-independence"""
+        h = 11 / 42
+        for patched in (False, True):
+            events = []
+            for _ in range(4):
+                events.extend(["trigger=rise" if patched else "trigger=unpatched",
+                               (h, 6000),
+                               "trigger=low" if patched else "trigger=unpatched",
+                               (h, 18000)])
+            reference, outputs = None, []
+            for timbre in (0, 1 / 3, 2 / 3, 1):
+                with self.subTest(patched=patched, timbre=timbre):
+                    main, aux = self.render_treatment([f"timbre={timbre}"] + events)
+                    if reference is None:
+                        reference = aux
+                        self.assert_clean_channels((main, aux))
+                    self.assertEqual(aux, reference)
+                    if patched:
+                        self.assert_bursts((aux,), 5)
+                        self.assert_treated_burst_schedule((main, aux))
+                    else:
+                        for start in range(960, 96000 - 4800, 4800):
+                            self.assert_tone(aux[start:start + 4800], 5)
+                    for previous in outputs:
+                        self.assertGreater(rms([a - b for a, b in
+                                                zip(main, previous)]), 0.01)
+                    outputs.append(main)
+
+    def test_bad_line_ordered_sweep_and_recovery(self):
+        """phreak-bad-line/stable-treatment-sweep/ordered-sweep-and-recovery
+        phreak-pitch-outputs/clean-and-processed-routing/aux-independence
+        phreak-bad-line/clean-endpoint-and-band-limitation/true-clean-endpoint
+        """
+        frames = 12 * 48000 + 4800
+        output = self.directory / "sweep.f32"
+        for mode in ("unpatched", "triggered"):
+            channels = []
+            for control in ("clean", "sweep"):
+                subprocess.run([str(self.driver), "treatment-sweep", control, mode,
+                                str(output)], check=True)
+                channels.append(self.read_channels(output, frames, main_peak=1.0))
+            clean, (main, aux) = channels
+            self.assertEqual(aux, clean[1])
+            self.assertLessEqual(max(abs(m - a) for m, a in zip(main[-960:], aux[-960:])),
+                                 1 / 32768)
+            if mode == "triggered":
+                self.assert_treated_burst_schedule((main, aux))
+                self.assert_bursts((aux[:12 * 48000],), 5)
+                continue
+            # AUX has the pair throughout both legs, including the return tail.
+            for start in range(960, frames - 4800, 4800):
+                self.assert_tone(aux[start:start + 4800], 5)
+            filtered, _ = self.render_treatment([
+                f"timbre={1 / 3}", (11 / 42, 12 * 48000), (11 / 42, 4800),
+            ])
+            # Reconstruct the continuous stage amounts from the documented 5 ms
+            # ramps and block-timed control sweep, independently of DSP state.
+            mixes = [array("f"), array("f"), array("f")]
+            current, targets, starts, ages = [0.0] * 3, [0.0] * 3, [0.0] * 3, [240] * 3
+            for block in range(0, frames, 12):
+                t = (float32(block / (288000 - 12)) if block < 288000
+                     else float32(1 - float32((block - 288000) / (288000 - 12)))
+                     if block < 576000 else 0)
+                for stage in range(3):
+                    target = max(0, min(1, float32(float32(3 * t) - stage)))
+                    if target != targets[stage]:
+                        starts[stage], targets[stage], ages[stage] = current[stage], target, 0
+                    for _ in range(12):
+                        ages[stage] = min(240, ages[stage] + 1)
+                        current[stage] = starts[stage] + (targets[stage] - starts[stage]) * ages[stage] / 240
+                        mixes[stage].append(current[stage])
+            # Interior windows in each third on both legs establish the order,
+            # not merely a difference between clean and the crushed endpoint.
+            for seconds in (0.5, 1.5, 2.5, 3.5, 4.5, 5.5,
+                            6.5, 7.5, 8.5, 9.5, 10.5, 11.5):
+                start = int(seconds * 48000)
+                recovered_hold = []
+                for n in range(start, start + 2400):
+                    band, saturation, reduction = (mix[n] for mix in mixes)
+                    x = aux[n] + band * (filtered[n] - aux[n])
+                    driven = (1 + 7 * saturation) * x
+                    x += saturation * (0.8 * driven / (1 + abs(driven)) - x)
+                    if reduction == 0:
+                        self.assertAlmostEqual(main[n], x, delta=1e-5)
+                    else:
+                        recovered_hold.append((main[n] - (1 - reduction) * x) / reduction)
+                if recovered_hold:
+                    # These windows stay within one discrete resolution step.
+                    v = 3 * (seconds / 6 if seconds < 6 else 2 - seconds / 6) - 2
+                    resolution = math.floor(7 * v)
+                    step, hold = 2 / (2 ** (12 - resolution) - 1), 1 + resolution
+                    levels = [round(x / step) for x in recovered_hold]
+                    self.assertLess(max(abs(x - k * step) for x, k in
+                                        zip(recovered_hold, levels)), 1 / 32768)
+                    changes = [n for n in range(1, len(levels)) if levels[n] != levels[n - 1]]
+                    self.assertGreater(len(changes), 100)
+                    self.assertEqual(len({n % hold for n in changes}), 1)
 
     def test_bad_line_telephone_bandpass(self):
         """phreak-bad-line/clean-endpoint-and-band-limitation/telephone-band-pass"""

@@ -62,8 +62,14 @@ Saturation follows filtering. Its mix and drive ramp together over 5 ms from
 their current values, including changes during an unfinished ramp; repeated
 control blocks do not restart the transition. Reset clears this state too.
 At 1/3 saturation is bypassed; at 2/3 it is fully wet with drive 8 and a peak
-below 0.8. Digital reduction remains a subsequent task; TIMBRE above 2/3
-currently retains the fully filtered and saturated signal.
+below 0.8. Above 2/3, TIMBRE mixes in signed quantization and sample holding
+after saturation, with wet amount `v=3*TIMBRE-2`, `12-floor(7*v)` bits and
+`1+floor(7*v)` samples per update. Quantization rounds symmetrically to the
+nearest multiple of `2/(2^bits-1)` and clips to [-1,1]. Resolution changes are
+discrete; the wet mix ramps over 5 ms. Changing hold length starts a new hold,
+and render-block boundaries do not reset its clock. At TIMBRE 1, MAIN uses the
+5-bit grid with eight-sample holds (6 kHz updates); at 2/3 reduction is bypassed.
+Reset clears all reduction history. Returning to 0 restores exact clean audio.
 MORPH and macro are deliberately unused across their full ranges.
 
 From your eurorack checkout:
@@ -129,6 +135,16 @@ filter-then-drive reference checks intermediate and full saturation within
 1e-6 and distinguishes the reversed stage order. Sample-timed transitions
 check mix/drive smoothing, mid-ramp retargets, exact filter-only recovery,
 reset and identical results across all four block sizes.
+Reduction tests check all eight resolutions and signed clipping, intermediate
+wet mixes, 5 ms ramps and interrupted transitions. Two-second FSK renders at
+TIMBRE 1 check the 5-bit grid, eight-sample holds, the filter/saturator source
+at each update and added spectral images, against the unreduced 2/3 setting.
+Key-5 renders at 0, 1/3, 2/3 and 1 compare AUX sample for sample in continuous
+and 2 Hz triggered operation, checking treatment differences and shared burst
+timing. A 6 s outward sweep and 6 s return followed by 100 ms at zero check
+finite bounded audio, ordered stages in both directions, unchanged AUX and
+clean recovery. The sweep also runs through the keypress LPGs; its unpatched
+stage windows are checked against independent mix/drive and grid calculations.
 The timeline driver accepts `trigger=low`, `trigger=high`, `trigger=rise`,
 `trigger=unpatched`, `note=MIDI`, and `timbre=VALUE` tokens alongside
 sample-timed selections and `reset`.

@@ -17,7 +17,18 @@ inline float SoftSaturate(float sample, float drive) {
   return 0.8f * driven / (1.0f + magnitude);
 }
 
-// MAIN-only telephone band and drive. Cutoffs stay fixed as pitch changes.
+// Signed, zero-centred grid; rounding ties go away from zero.
+inline float Quantize(float sample, int bits) {
+  CONSTRAIN(sample, -1.0f, 1.0f);
+  const float scale = static_cast<float>((1 << bits) - 1);
+  const float magnitude = sample < 0.0f ? -sample : sample;
+  const int level = static_cast<int>(magnitude * (0.5f * scale) + 0.5f);
+  float quantized = level * (2.0f / scale);
+  if (quantized > 1.0f) quantized = 1.0f;
+  return sample < 0.0f ? -quantized : quantized;
+}
+
+// MAIN-only telephone band, drive and reduction. Cutoffs do not track pitch.
 class BadLine {
  public:
   BadLine() { Reset(); }
@@ -32,6 +43,12 @@ class BadLine {
     remaining_ = 0;
     saturation_mix_ = saturation_target_ = saturation_start_ = saturation_step_ = 0.0f;
     saturation_remaining_ = 0;
+    reduction_mix_ = reduction_target_ = reduction_start_ = reduction_step_ = 0.0f;
+    reduction_remaining_ = 0;
+    held_ = 0.0f;
+    hold_remaining_ = 0;
+    hold_length_ = 1;
+    bits_ = 12;
   }
 
   void SetTimbre(float timbre) {
@@ -51,6 +68,23 @@ class BadLine {
       saturation_step_ = (saturation_target_ - saturation_mix_)
           / kTransitionSamples;
     }
+    float reduction = 3.0f * timbre - 2.0f;
+    CONSTRAIN(reduction, 0.0f, 1.0f);
+    if (reduction != reduction_target_) {
+      reduction_target_ = reduction;
+      reduction_start_ = reduction_mix_;
+      reduction_remaining_ = kTransitionSamples;
+      reduction_step_ = (reduction_target_ - reduction_mix_)
+          / kTransitionSamples;
+      // Resolution steps are intentional; only the wet mix is smoothed.
+      const int resolution = static_cast<int>(7.0f * reduction);
+      bits_ = 12 - resolution;
+      const size_t length = 1 + resolution;
+      if (length != hold_length_) {
+        hold_length_ = length;
+        hold_remaining_ = 0;
+      }
+    }
   }
 
   float Process(float dry) {
@@ -69,15 +103,38 @@ class BadLine {
           : saturation_start_ + saturation_step_
               * (kTransitionSamples - saturation_remaining_);
     }
+    if (reduction_remaining_) {
+      --reduction_remaining_;
+      reduction_mix_ = reduction_remaining_ == 0 ? reduction_target_
+          : reduction_start_ + reduction_step_
+              * (kTransitionSamples - reduction_remaining_);
+    }
     // Exact endpoint branches also avoid roundoff from dry/wet cancellation.
     const float filtered = mix_ == 0.0f ? dry : mix_ == 1.0f ? wet
         : dry + mix_ * (wet - dry);
-    if (saturation_mix_ == 0.0f) return filtered;
     // Deriving drive from the smoothed mix makes both follow the same 5 ms
     // linear ramp, including retargets before the previous ramp has finished.
-    const float saturated = SoftSaturate(filtered, 1.0f + 7.0f * saturation_mix_);
-    if (saturation_mix_ == 1.0f) return saturated;
-    return filtered + saturation_mix_ * (saturated - filtered);
+    float saturated = filtered;
+    if (saturation_mix_ != 0.0f) {
+      const float wet_saturation = SoftSaturate(
+          filtered, 1.0f + 7.0f * saturation_mix_);
+      saturated = saturation_mix_ == 1.0f ? wet_saturation
+          : filtered + saturation_mix_ * (wet_saturation - filtered);
+    }
+    if (reduction_mix_ == 0.0f) {
+      // No held history can leak into the clean or saturation-only endpoints.
+      hold_remaining_ = 0;
+      held_ = 0.0f;
+      return saturated;
+    }
+    if (hold_remaining_ == 0) {
+      held_ = Quantize(saturated, bits_);
+      hold_remaining_ = hold_length_;
+    }
+    --hold_remaining_;
+    // Return the grid value directly at full wet, without cancellation error.
+    return reduction_mix_ == 1.0f ? held_
+        : saturated + reduction_mix_ * (held_ - saturated);
   }
 
  private:
@@ -93,6 +150,15 @@ class BadLine {
   float saturation_start_;
   float saturation_step_;
   size_t saturation_remaining_;
+  float reduction_mix_;
+  float reduction_target_;
+  float reduction_start_;
+  float reduction_step_;
+  size_t reduction_remaining_;
+  float held_;
+  size_t hold_remaining_;
+  size_t hold_length_;
+  int bits_;
 };
 
 }  // namespace phreak
