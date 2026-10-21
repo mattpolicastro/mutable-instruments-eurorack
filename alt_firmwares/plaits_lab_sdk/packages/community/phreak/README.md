@@ -48,8 +48,11 @@ timing. At extreme high notes, one shared ratio ceiling keeps the highest
 component at 0.45 times the sample rate (21600 Hz at 48 kHz), preserving pair
 ratios. During crossfades the ceiling considers both voices and updates as soon
 as a voice retires or a queued fade begins, independently of render partitions.
-Bad-line treatment remains a subsequent task.
-TIMBRE, MORPH and macro are currently inactive.
+The cadence/crossfade signal splits into clean AUX and a separate MAIN path
+before the matched keypress LPGs. AUX is taken directly from that split, so
+future MAIN treatment cannot feed into it. Bad-line treatment remains a
+subsequent task; MAIN currently bypasses treatment and TIMBRE is inactive.
+MORPH and macro are deliberately unused across their full ranges.
 
 From your eurorack checkout:
 
@@ -89,6 +92,13 @@ checking both channels' frequencies, 100 ms durations, and silence below
 -80 dBFS after 110 ms in 5 ms windows. An independent driver reference uses
 the shared LowPassGate primitive with literal contour times and frequencies;
 every float sample must match within 1e-6, including attack and closing cutoff.
+Routing tests compare MAIN and AUX within 1e-6 at TIMBRE 0 for all 21 entries,
+unpatched and with 2 Hz triggers, including cadence edges, LPG attack/release,
+and selection crossfades into every entry. Ringback runs through its reopening
+at 6 s. The manifest's unity gains and envelope ownership are also checked.
+At TIMBRE 0.5, separate 2 s MORPH and macro sweeps from 0 to 1 must match
+each corresponding baseline channel with both controls at 0.5, using identical
+initial state and trigger events in unpatched and 2 Hz triggered operation.
 The key-5 reference also runs across all four partition sizes. Every engine
 render in the driver must report already-enveloped output.
 The timeline driver accepts `trigger=low`, `trigger=high`, `trigger=rise`, and

@@ -188,6 +188,80 @@ class ToneTests(unittest.TestCase):
         self.assertLessEqual(20 * math.log10(max(amplitudes) / min(amplitudes)), 0.5)
         self.assertLess(residual / (min(amplitudes) / math.sqrt(2)), 0.01)
 
+    def assert_clean_channels(self, channels):
+        main, aux = channels
+        self.assertGreater(rms(aux), 0.01)  # Silence cannot satisfy this gate.
+        self.assertLessEqual(max(abs(m - a) for m, a in zip(main, aux)), 1e-6)
+
+    def test_all_entry_clean_channel_equality(self):
+        """phreak-pitch-outputs/clean-and-processed-routing/clean-endpoint-equality"""
+        for index in range(21):
+            h = (index + 0.5) / 21
+            # Ringback must include its closing AND reopening cadence edges.
+            frames = 312000 if index == 14 else 96000
+            with self.subTest(index=index, trigger="unpatched"):
+                channels = self.render_timeline([(h, frames)])
+                self.assert_clean_channels(channels)
+                if index in (13, 14):
+                    self.assert_cadence(channels[1], 0.5 if index == 13 else 2,
+                                        0.5 if index == 13 else 4)
+            events = []
+            for _ in range(4):
+                events.extend(["trigger=rise", (h, 6000),
+                               "trigger=low", (h, 18000)])
+            with self.subTest(index=index, trigger="2 Hz"):
+                channels = self.render_timeline(events)
+                self.assert_clean_channels(channels)
+                # Check that all four LPG-shaped bursts actually occurred,
+                # including the single-component FSK entries.
+                for edge in range(0, 96000, 24000):
+                    self.assertGreater(rms(channels[1][edge + 960:edge + 4320]), 0.1)
+                    self.assertLess(max(abs(x) for x in
+                                        channels[1][edge + 5280:edge + 24000]), 1e-4)
+
+    def test_clean_channel_equality_during_all_entry_crossfades(self):
+        """phreak-pitch-outputs/clean-and-processed-routing/clean-endpoint-equality"""
+        for index in range(21):
+            previous = ((index - 1) % 21 + 0.5) / 21
+            h = (index + 0.5) / 21
+            for patched in (False, True):
+                with self.subTest(index=index, patched=patched):
+                    # Change at 50 ms during the keypress hold. Repeated
+                    # periods exercise both fade directions at 2 Hz.
+                    events = []
+                    for _ in range(2):
+                        events.extend([
+                            "trigger=rise" if patched else "trigger=unpatched",
+                            (previous, 2400), (h, 3600),
+                            "trigger=low" if patched else "trigger=unpatched",
+                            (h, 18000),
+                        ])
+                    channels = self.render_timeline(events)
+                    self.assert_clean_channels(channels)
+                    for edge in (2400, 26400):
+                        self.assertGreater(rms(channels[1][edge:edge + 240]), 0.1)
+
+    def test_neutral_control_sweeps(self):
+        """phreak-pitch-outputs/neutral-unused-controls/neutral-control-sweeps"""
+        output = self.directory / "neutral.f32"
+        for mode in ("unpatched", "triggered"):
+            baseline = None
+            for control in ("baseline", "morph", "macro"):
+                with self.subTest(mode=mode, control=control):
+                    subprocess.run([str(self.driver), "neutral", control, mode,
+                                    str(output)], check=True)
+                    channels = self.read_channels(output, 96000)
+                    if baseline is None:
+                        baseline = channels
+                        for samples in baseline:
+                            self.assertGreater(rms(samples), 0.01)
+                    else:
+                        # Compare corresponding paths, allowing MAIN and AUX
+                        # to differ once TIMBRE treatment is implemented.
+                        for samples, reference in zip(channels, baseline):
+                            self.assertLessEqual(max(abs(a - b) for a, b in
+                                                     zip(samples, reference)), 1e-6)
+
     def test_octave_transposition(self):
         """phreak-pitch-outputs/common-pitch-ratio/octave-transposition"""
         for note, ratio in ((48, 0.5), (60, 1), (72, 2)):
@@ -754,6 +828,13 @@ class PackageTests(unittest.TestCase):
         result = subprocess.run(
             command, cwd=REPO_ROOT, text=True, capture_output=True, check=False)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_clean_output_manifest_gains(self):
+        """phreak-pitch-outputs/clean-and-processed-routing/clean-endpoint-equality"""
+        manifest = json.loads((PACKAGE / "plaits-engine.json").read_text())
+        self.assertEqual(manifest["postProcessing"], {
+            "alreadyEnveloped": True, "outGain": 1.0, "auxGain": 1.0,
+        })
 
     def test_validate_package_by_path(self):
         """phreak-package/community-package-identity/validate-package-by-path"""

@@ -98,9 +98,15 @@ void PhreakEngine::Render(const EngineParameters& parameters, float* out,
         pitch_ratio = LimitPitchRatio(requested_ratio);
       }
     }
-    out[i] = sample;
-    aux[i] = out[i];
-    if (patched) keypress_.Process(&out[i], &aux[i]);
+    // Split after cadence/selection mixing, before any MAIN-only treatment.
+    // MAIN is still a bypass until the bad-line stages are implemented.
+    // MORPH and macro deliberately do not participate in either path.
+    float clean = sample;
+    float main = sample;
+    // Independent LPG histories share one contour, downstream of the split.
+    if (patched) keypress_.Process(&main, &clean);
+    out[i] = main;
+    aux[i] = clean;
   }
 }
 

@@ -43,6 +43,39 @@ bool RenderAudio(plaits::Engine& engine,
 // Host-only driver. Audio is interleaved native float MAIN/AUX at 48 kHz.
 int main(int argc, char** argv) {
   const plaits::phreak::TonePlan& plan = plaits::phreak::kNorthAmerica;
+  if (argc == 5 && std::strcmp(argv[1], "neutral") == 0) {
+    const bool morph = std::strcmp(argv[2], "morph") == 0;
+    const bool macro = std::strcmp(argv[2], "macro") == 0;
+    const bool patched = std::strcmp(argv[3], "triggered") == 0;
+    if ((!morph && !macro && std::strcmp(argv[2], "baseline") != 0)
+        || (!patched && std::strcmp(argv[3], "unpatched") != 0)) return 1;
+    FILE* output = std::fopen(argv[4], "wb");
+    if (!output) return 1;
+    plaits::PhreakEngine engine;
+    engine.Init(NULL);
+    plaits::EngineParameters p = plaits::EngineParameters();
+    p.note = 60.0f;
+    p.harmonics = 11.0f / 42.0f;
+    p.timbre = 0.5f;
+    // Exactly 2 s in SDK-sized blocks, including both sweep endpoints.
+    const size_t frames = 96000;
+    const size_t block = plaits::kBlockSize;
+    for (size_t n = 0; n < frames; n += block) {
+      const float sweep = static_cast<float>(n) / (frames - block);
+      p.morph = morph ? sweep : 0.5f;
+      p.macro = macro ? sweep : 0.5f;
+      // Identical 2 Hz events for every run; high for 1/4 of each period.
+      const size_t age = n % 24000;
+      p.trigger = !patched ? plaits::TRIGGER_UNPATCHED
+          : age < 6000 ? plaits::TRIGGER_HIGH : plaits::TRIGGER_LOW;
+      if (patched && age == 0) p.trigger |= plaits::TRIGGER_RISING_EDGE;
+      if (!RenderAudio(engine, p, block, output)) {
+        std::fclose(output);
+        return 1;
+      }
+    }
+    return std::fclose(output) == 0 ? 0 : 1;
+  }
   if (argc == 4 && std::strcmp(argv[1], "retrigger-reference") == 0) {
     const int retrigger = std::atoi(argv[2]);
     if (retrigger < 1 || retrigger >= 4800) return 1;
@@ -192,8 +225,9 @@ int main(int argc, char** argv) {
         "       %s timeline BLOCK_SIZE OUTPUT [note=MIDI] [trigger=unpatched|low|high|rise] HARMONICS FRAMES [HARMONICS FRAMES | reset ...]\n"
         "       %s helper INDEX_OR_synthetic SECONDS OUTPUT\n"
         "       %s bursts|lpg-reference INDEX SECONDS OUTPUT BLOCK_SIZE\n"
-        "       %s retrigger-reference EDGE_FRAME OUTPUT\n",
-        argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
+        "       %s retrigger-reference EDGE_FRAME OUTPUT\n"
+        "       %s neutral baseline|morph|macro unpatched|triggered OUTPUT\n",
+        argv[0], argv[0], argv[0], argv[0], argv[0], argv[0], argv[0]);
     return 1;
   }
   const double seconds = std::atof(argv[2]);
