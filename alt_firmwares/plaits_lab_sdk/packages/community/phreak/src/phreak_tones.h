@@ -6,6 +6,7 @@
 
 #include "plaits/dsp/dsp.h"
 #include "plaits/dsp/oscillator/sine_oscillator.h"
+#include "phreak_articulation.h"
 
 namespace plaits {
 namespace phreak {
@@ -16,7 +17,7 @@ struct ToneEntry {
   // All valid entries have at most two components; consumers use that count.
   // mutation-equivalent: [3] adds an unused zero-initialized slot, only changing storage layout.
   float frequency_hz[2];
-  // Both zero means continuous. Cadence playback is added separately.
+  // Both zero means continuous; otherwise durations include the edge ramps.
   float on_seconds;
   float off_seconds;
 };
@@ -94,7 +95,8 @@ class ToneSelector {
   size_t index_;
 };
 
-// Fixed storage for at most two sines; SetTone preserves oscillator phases.
+// Fixed storage for at most two sines and an independent cadence clock.
+// SetTone preserves oscillator phases and restarts cadence at its on phase.
 class ToneVoice {
  public:
   ToneVoice() { Reset(); }
@@ -105,8 +107,10 @@ class ToneVoice {
     increment_[0] = increment_[1] = 0.0f;
     oscillator_count_ = 0;
     gain_ = 0.0f;
+    cadence_.Reset();
   }
   void SetTone(const ToneEntry& entry) {
+    cadence_.Reset(entry.on_seconds, entry.off_seconds);
     oscillator_count_ = entry.oscillator_count;
     gain_ = oscillator_count_ == 1 ? 0.5f : 0.25f;
     for (size_t i = 0; i < oscillator_count_; ++i) {
@@ -120,7 +124,8 @@ class ToneVoice {
       phase_[i] -= static_cast<int>(phase_[i]);
       sample += Sine(phase_[i]);
     }
-    return gain_ * sample;
+    // Advance phases even while cadence is silent.
+    return gain_ * sample * cadence_.Next();
   }
 
  private:
@@ -131,6 +136,7 @@ class ToneVoice {
   float increment_[2];
   size_t oscillator_count_;
   float gain_;
+  Cadence cadence_;
 };
 
 }  // namespace phreak

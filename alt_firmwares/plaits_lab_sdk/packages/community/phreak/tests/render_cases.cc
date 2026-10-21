@@ -7,6 +7,14 @@
 
 #include "phreak_engine.h"
 
+// Test-only descriptor: never compiled into the package or exposed as a control.
+const plaits::phreak::ToneEntry kSyntheticEntries[] = {
+  { "fixture-pair", 2, { 400.0f, 450.0f }, 0.250f, 0.750f }
+};
+const plaits::phreak::TonePlan kSynthetic = {
+  "synthetic-test-only", kSyntheticEntries, 1
+};
+
 bool RenderAudio(plaits::Engine& engine,
     const plaits::EngineParameters& parameters, size_t frames, FILE* output,
     size_t block_size = plaits::kBlockSize) {
@@ -52,14 +60,40 @@ int main(int argc, char** argv) {
     }
     return 0;
   }
+  if (argc == 5 && std::strcmp(argv[1], "helper") == 0) {
+    const bool synthetic = std::strcmp(argv[2], "synthetic") == 0;
+    const int index = std::atoi(argv[2]);
+    const double seconds = std::atof(argv[3]);
+    if ((!synthetic && (index < 0 || index >= static_cast<int>(plan.count)))
+        || !(seconds > 0.0 && seconds <= 12.0)) return 1;
+    const plaits::phreak::TonePlan& fixture = synthetic ? kSynthetic : plan;
+    plaits::phreak::ToneEntry entry = fixture.entries[synthetic ? 0 : index];
+    plaits::phreak::ToneVoice cadenced, continuous;
+    cadenced.SetTone(entry);
+    entry.on_seconds = entry.off_seconds = 0.0f;
+    continuous.SetTone(entry);
+    FILE* output = std::fopen(argv[4], "wb");
+    if (!output) return 1;
+    const size_t frames = static_cast<size_t>(seconds * plaits::kSampleRate);
+    for (size_t i = 0; i < frames; ++i) {
+      // Helper/reference pair, not the engine's MAIN/AUX channels.
+      const float samples[] = { cadenced.Next(), continuous.Next() };
+      if (std::fwrite(samples, sizeof(float), 2, output) != 2) {
+        std::fclose(output);
+        return 1;
+      }
+    }
+    return std::fclose(output) == 0 ? 0 : 1;
+  }
   const bool steps = argc >= 5 && std::strcmp(argv[1], "steps") == 0;
   const bool timeline = argc >= 6 && std::strcmp(argv[1], "timeline") == 0;
   if (!steps && !timeline && argc != 4) {
     std::fprintf(stderr,
         "usage: %s table | index HARMONICS | HARMONICS SECONDS OUTPUT\n"
         "       %s steps SECONDS_PER_STEP OUTPUT HARMONICS [HARMONICS | reset ...]\n"
-        "       %s timeline BLOCK_SIZE OUTPUT HARMONICS FRAMES [HARMONICS FRAMES | reset ...]\n",
-        argv[0], argv[0], argv[0]);
+        "       %s timeline BLOCK_SIZE OUTPUT [note=MIDI] HARMONICS FRAMES [HARMONICS FRAMES | reset ...]\n"
+        "       %s helper INDEX_OR_synthetic SECONDS OUTPUT\n",
+        argv[0], argv[0], argv[0], argv[0]);
     return 1;
   }
   const double seconds = std::atof(argv[2]);
@@ -80,6 +114,10 @@ int main(int argc, char** argv) {
   const int first = steps || timeline ? 4 : 1;
   const int last = steps || timeline ? argc : 2;
   for (int step = first; step < last; ++step) {
+    if ((steps || timeline) && std::strncmp(argv[step], "note=", 5) == 0) {
+      parameters.note = static_cast<float>(std::atof(argv[step] + 5));
+      continue;
+    }
     if ((steps || timeline) && std::strcmp(argv[step], "reset") == 0) {
       engine.Reset();
       continue;

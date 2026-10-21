@@ -72,6 +72,10 @@ def reference_fade(outgoing, incoming):
             for n in range(240)]
 
 
+def rms(samples):
+    return math.sqrt(sum(x * x for x in samples) / len(samples))
+
+
 def sine_fit(samples, frequencies):
     """Least squares at reference Hz, allowing arbitrary component phases.
 
@@ -141,10 +145,10 @@ class ToneTests(unittest.TestCase):
         aux = self.read_aux(output, count * frames)
         return [aux[start:start + frames] for start in range(0, len(aux), frames)]
 
-    def render_timeline(self, events, block_size=12):
+    def render_timeline(self, events, block_size=12, note=60):
         """Sample-timed (HARMONICS, frames) events, with optional reset tokens."""
         output = self.directory / "timeline.f32"
-        arguments = []
+        arguments = [f"note={note}"]
         frames = 0
         for event in events:
             if event == "reset":
@@ -182,6 +186,132 @@ class ToneTests(unittest.TestCase):
             self.assertAlmostEqual(amplitude, level, delta=0.001)
         self.assertLessEqual(20 * math.log10(max(amplitudes) / min(amplitudes)), 0.5)
         self.assertLess(residual / (min(amplitudes) / math.sqrt(2)), 0.01)
+
+    def assert_cadence(self, samples, on, off):
+        """10 ms RMS windows, 10% threshold; also require silent off samples."""
+        on_frames, period = round(on * 48000), round((on + off) * 48000)
+        threshold = 0.1 * rms(samples[960:5760])
+        self.assertGreater(threshold, 0.01)
+        for start in range(0, len(samples) - 479, 480):
+            expected_on = start % period < on_frames
+            self.assertEqual(rms(samples[start:start + 480]) > threshold,
+                             expected_on, f"cadence window at sample {start}")
+        for start in range(on_frames, len(samples), period):
+            self.assertLessEqual(max(abs(x) for x in samples[start:start + period - on_frames]),
+                                 1e-7)
+
+    def render_helper(self, entry, seconds):
+        output = self.directory / "helper.f32"
+        subprocess.run([str(self.driver), "helper", str(entry), str(seconds), str(output)],
+                       check=True)
+        return self.read_channels(output, round(seconds * 48000))
+
+    def test_continuous_tone_classes(self):
+        """phreak-articulation/unpatched-operation/continuous-tone-classes"""
+        for index in (0, 5, 19):
+            with self.subTest(index=index):
+                channels = self.render_timeline([((index + 0.5) / 21, 144000)])
+                self.assert_reference(channels, channels[1])
+                samples = channels[1]
+                self.assert_tone(samples[960:20160], index)
+                threshold = 0.1 * rms(samples[960:20160])
+                for start in range(960, len(samples), 480):
+                    self.assertGreater(rms(samples[start:start + 480]), threshold)
+                # Independent oscillator/ramp reference at startup, including
+                # the first fully open sample and the end of the 1 ms ramp.
+                gain = 0.5 if index == 19 else 0.25
+                for n in range(96):
+                    raw = gain * sum(math.sin(2 * math.pi * hz * (n + 1) / 48000)
+                                     for hz in TONE_CASES[index][2])
+                    self.assertAlmostEqual(samples[n], raw * min(n / 48, 1), delta=1e-5)
+
+    def test_busy_cadence(self):
+        """phreak-articulation/unpatched-operation/busy-cadence"""
+        channels = self.render_timeline([(27 / 42, 4 * 48000)])
+        for samples in channels:
+            self.assert_cadence(samples, 0.5, 0.5)
+            for start in range(0, len(samples), 48000):
+                self.assert_tone(samples[start + 960:start + 20160], 13)
+
+    def test_ringback_cadence(self):
+        """phreak-articulation/unpatched-operation/ringback-cadence"""
+        channels = self.render_timeline([(29 / 42, 12 * 48000)])
+        for samples in channels:
+            self.assert_cadence(samples, 2, 4)
+            for start in (0, 6 * 48000):
+                self.assert_tone(samples[start + 960:start + 20160], 14)
+
+    def test_cadence_ramps_and_phase_through_silence(self):
+        """phreak-articulation/unpatched-operation/busy-cadence
+        phreak-articulation/unpatched-operation/ringback-cadence
+        """
+        for index, on, period, duration in ((13, 24000, 48000, 4),
+                                           (14, 96000, 288000, 12)):
+            with self.subTest(index=index):
+                cadenced, continuous = self.render_helper(index, duration)
+                self.assert_reference(self.render_timeline([((index + 0.5) / 21,
+                                                            duration * 48000)]), cadenced)
+                self.assertEqual(cadenced[:48], continuous[:48])
+                # The continuous reference's phases never stop. Comparing every
+                # sample catches phase resets/freezes as well as edge shifts.
+                for n in range(48, len(cadenced)):
+                    p = n % period
+                    envelope = max(0, min(1, p / 48, (on - p) / 48))
+                    self.assertAlmostEqual(cadenced[n], continuous[n] * envelope,
+                                           delta=1e-6, msg=f"sample {n}")
+
+    def test_cadence_restart_and_timebase(self):
+        """phreak-articulation/unpatched-operation/cadence-restart-and-timebase"""
+        for index, on, off, seconds in ((13, 0.5, 0.5, 4), (14, 2, 4, 12)):
+            target = (index + 0.5) / 21
+            for note in (48, 72):
+                fresh = self.render_timeline([(target, seconds * 48000)], note=note)[1]
+                self.assert_cadence(fresh, on, off)
+                # Deliberately unaligned event positions, and reset during off,
+                # away from a cycle boundary. Reset must reproduce startup.
+                prefix, dwell = 1733, seconds * 48000 - 1234
+                restart = round(on * 48000) + 480
+                dial = self.render_timeline([(1 / 42, prefix + 240)], note=note)[1]
+                expected = (list(dial[:prefix])
+                            + reference_fade(dial[prefix:], fresh[:240])
+                            + list(fresh[240:dwell]) + list(fresh[:restart]))
+                for block in (1, 7, 12, 24):
+                    with self.subTest(index=index, note=note, block=block):
+                        channels = self.render_timeline(
+                            [(1 / 42, prefix), (target, dwell), "reset", (target, restart)],
+                            block, note)
+                        self.assert_reference(channels, expected)
+
+    def test_outgoing_cadence_keeps_running_during_fade(self):
+        """phreak-articulation/unpatched-operation/cadence-restart-and-timebase"""
+        # Cross the outgoing busy voice's closing edge, then its next opening.
+        busy = self.render_timeline([(27 / 42, 48240)])[1]
+        dial = self.render_timeline([(1 / 42, 480)])[1]
+        for start in (24000 - 120, 48000 - 120):
+            expected = (list(busy[:start])
+                        + reference_fade(busy[start:start + 240], dial[:240])
+                        + list(dial[240:]))
+            for block in (1, 7, 12, 24):
+                with self.subTest(start=start, block=block):
+                    self.assert_reference(self.render_timeline(
+                        [(27 / 42, start), (1 / 42, 480)], block), expected)
+
+    def test_synthetic_locale_descriptor(self):
+        """phreak-tones/locale-table-separation/table-substitution-without-a-locale-control"""
+        samples, _ = self.render_helper("synthetic", 4)
+        self.assert_cadence(samples, 0.25, 0.75)
+        for start in range(0, len(samples), 48000):
+            amplitudes, residual = sine_fit(samples[start + 960:start + 10560], (400, 450))
+            for amplitude in amplitudes:
+                self.assertAlmostEqual(amplitude, 0.25, delta=0.001)
+            self.assertLess(residual, 0.001)
+        self.test_north_american_table_metadata()
+        manifest = json.loads((PACKAGE / "plaits-engine.json").read_text())
+        self.assertEqual([control["id"] for control in manifest["controls"]],
+                         ["harmonics", "timbre", "morph", "macro"])
+        self.assertNotIn("synthetic", json.dumps(manifest).lower())
+        for source in (PACKAGE / "src").iterdir():
+            self.assertNotIn("synthetic", source.read_text().lower())
 
     def test_north_american_table_metadata(self):
         # Check labels/counts independently of rendering: an invalid count must

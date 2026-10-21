@@ -15,11 +15,18 @@ finishes before another starts, so rapid requests settle within 10 ms plus one
 control block, with at most two tone voices active. Reset clears both voices,
 the fade, pending selection, and hysteresis history.
 
-Both outputs currently render the selected reference-Hz
-sines continuously: 0.25 per component for pairs, 0.5 for single-tone FSK.
-Pitch transposition, cadence playback, trigger articulation and bad-line
-treatment remain subsequent tasks. TIMBRE, MORPH and macro are
-currently inactive; cadence durations are stored in the table for later use.
+Both outputs render the selected reference-Hz sines: 0.25 per component for
+pairs, 0.5 for single-tone FSK. Dial, DTMF and FSK sustain continuously;
+busy runs 0.5 s on / 0.5 s off and ringback runs 2 s on / 4 s off. Each voice
+counts elapsed samples independently, starting on at selection or Reset.
+Onset and cadence edges use 1 ms linear ramps (48 sample intervals) inside the
+on intervals, with oscillators advancing through silence. The opening reaches
+unity at sample 48 and the closing reaches zero at the first off sample;
+neither ramp changes the scheduled cadence. The outgoing voice keeps its cadence
+during a selection fade. Frequency and cadence come from the tone descriptor;
+the sole production plan remains the 21-entry North American table.
+Pitch transposition, trigger articulation and bad-line treatment remain
+subsequent tasks. TIMBRE, MORPH and macro are currently inactive.
 
 From your eurorack checkout:
 
@@ -42,6 +49,12 @@ requests cover adjacent changes, direct dial/FSK jumps, rapid requests and
 pending-target cancellation/reversal. Reset during either fade must match a
 fresh engine, including subsequent selection changes. These cases run with
 1-, 7-, 12- and 24-sample partitions to check sample-based timing.
+Cadence tests cover 3 s continuous renders, four complete busy cycles, two
+complete ring cycles, 1 ms edge ramps, phase continuity through silence, and
+selection/reset restarts at notes 48/72 with identical sample-timed events in
+every partition size. Pitch transposition itself remains task 4.1. A test-only
+400+450 Hz descriptor with 0.25/0.75 s cadence exercises the unchanged helper
+without adding a production locale or control.
 Set `CXX` to choose the compiler. Shared repository headers use a trailing enum comma and are
 included with `-isystem`; strict C++98 diagnostics apply to package source.
 The shared resource translation unit is compiled separately because it uses a
