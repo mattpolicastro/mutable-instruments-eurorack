@@ -1,9 +1,9 @@
 {
-  "slug": "PlaitsLabAuditionV2Proto",
-  "name": "Plaits Lab Audition (v2 prototype)",
+  "slug": "Phreak",
+  "name": "Phreak",
   "version": "2.0.0",
   "license": "MIT",
-  "brand": "Plaits Lab",
+  "brand": "Matt Policastro",
   "author": "Matt Policastro",
   "authorEmail": "",
   "authorUrl": "",
@@ -15,11 +15,12 @@
   "modules": [
     {
       "slug": "PlaitsLabEngine",
-      "name": "Plaits Lab Engine",
-      "description": "One Plaits Lab package behind Plaits' controls and jacks, for auditioning without flashing hardware. The engine is chosen at build time.",
+      "name": "Phreak",
+      "description": "Telephone tones, phreak boxes and dial-up modems, behind Plaits' controls. A Plaits Lab engine.",
       "tags": [
         "Oscillator",
-        "Voice"
+        "Voice",
+        "Noise"
       ]
     }
   ]

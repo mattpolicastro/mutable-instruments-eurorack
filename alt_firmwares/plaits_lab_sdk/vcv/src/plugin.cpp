@@ -164,29 +164,36 @@ struct PlaitsLabEngine : Module {
 
 // Rack's SVG renderer draws no text, so the labels are drawn here.
 struct PanelLabels : TransparentWidget {
+  enum Style { TITLE, ACCENT, LIGHT, DARK };
   struct Label {
-    Label(std::string text, float x, float y, float size, bool light,
+    Label(std::string text, float x, float y, float size, Style style,
           std::string lpg_text = "")
-        : text(text), x(x), y(y), size(size), light(light), lpg_text(lpg_text) {}
+        : text(text), x(x), y(y), size(size), style(style), lpg_text(lpg_text) {}
     std::string text;
     float x, y, size;
-    bool light;
+    Style style;
     std::string lpg_text;  // shown instead while editing the LPG, if set
   };
   std::vector<Label> labels;
   const bool* lpg_mode = NULL;
 
   void draw(const DrawArgs& args) override {
-    std::shared_ptr<window::Font> font = APP->window->uiFont;
-    if (!font || font->handle < 0) return;
-    nvgFontFaceId(args.vg, font->handle);
+    std::shared_ptr<window::Font> sans = APP->window->uiFont;
+    std::shared_ptr<window::Font> mono =
+        APP->window->loadFont(asset::system("res/fonts/ShareTechMono-Regular.ttf"));
+    if (!mono || mono->handle < 0) mono = sans;
+    if (!sans || sans->handle < 0) return;
+    const NVGcolor cream = nvgRGB(0xf4, 0xf1, 0xe8);
+    const NVGcolor amber = nvgRGB(0xf2, 0xb1, 0x34);
+    const NVGcolor navy = nvgRGB(0x16, 0x37, 0x6a);
     nvgTextAlign(args.vg, NVG_ALIGN_CENTER | NVG_ALIGN_MIDDLE);
     const bool editing = lpg_mode && *lpg_mode;
     for (const Label& label : labels) {
       const bool swapped = editing && !label.lpg_text.empty();
+      nvgFontFaceId(args.vg, label.style == TITLE ? mono->handle : sans->handle);
       nvgFontSize(args.vg, label.size);
-      nvgFillColor(args.vg, swapped ? nvgRGB(0x2a, 0x5d, 0xb0)
-          : label.light ? nvgRGB(0xf2, 0xf0, 0xea) : nvgRGB(0x2b, 0x2b, 0x2b));
+      nvgFillColor(args.vg, swapped || label.style == ACCENT ? amber
+          : label.style == DARK ? navy : cream);
       Vec p = mm2px(Vec(label.x, label.y));
       nvgText(args.vg, p.x, p.y, (swapped ? label.lpg_text : label.text).c_str(), NULL);
     }
@@ -209,45 +216,47 @@ struct PlaitsLabEngineWidget : ModuleWidget {
     const std::string macro = Upper(PLAITS_LAB_LABEL_MACRO);
     PanelLabels* labels = new PanelLabels;
     labels->box.size = box.size;
+    typedef PanelLabels P;
     labels->labels = {
-      {lab::LabVoice::name(), 30.48f, 8.5f, 15.f, true},
-      {"PLAITS LAB", 30.48f, 14.5f, 8.f, true},
-      {"FREQUENCY", 15.24f, 23.f, 8.f, false},
-      {harmonics, 45.72f, 23.f, 8.f, false},
-      {timbre, 12.f, 43.f, 8.f, false, "LPG RESPONSE"},
-      {macro, 30.48f, 44.5f, 7.f, false},
-      {morph, 48.96f, 43.f, 8.f, false, "LPG DECAY"},
-      {timbre, 10.16f, 58.f, 7.f, false},
-      {"FM", 30.48f, 58.f, 7.f, false},
-      {morph, 50.8f, 58.f, 7.f, false},
-      {timbre, 7.62f, 72.5f, 6.5f, false},
-      {"FM", 22.86f, 72.5f, 6.5f, false},
-      {morph, 38.1f, 72.5f, 6.5f, false},
-      {harmonics, 53.34f, 72.5f, 6.f, false},
-      {"TRIG", 7.62f, 86.5f, 7.f, false},
-      {"LEVEL", 22.86f, 86.5f, 7.f, false},
-      {"V/OCT", 38.1f, 86.5f, 7.f, false},
-      {"OUT", 42.55f, 106.8f, 7.f, false},
-      {"AUX", 54.0f, 106.8f, 7.f, false},
+      {Upper(lab::LabVoice::name()), 32.5f, 8.0f, 17.f, P::TITLE},
+      {"PLAITS LAB ENGINE", 32.5f, 13.6f, 6.5f, P::ACCENT},
+      {"FREQUENCY", 15.24f, 19.9f, 7.5f, P::LIGHT},
+      {harmonics, 45.72f, 19.9f, 7.5f, P::LIGHT},
+      {timbre, 12.f, 43.2f, 7.5f, P::LIGHT, "LPG RESPONSE"},
+      {macro, 30.48f, 44.6f, 6.5f, P::LIGHT},
+      {morph, 48.96f, 43.2f, 7.5f, P::LIGHT, "LPG DECAY"},
+      {timbre, 10.16f, 58.f, 6.5f, P::LIGHT},
+      {"FM", 30.48f, 58.f, 6.5f, P::LIGHT},
+      {morph, 50.8f, 58.f, 6.5f, P::LIGHT},
+      {timbre, 7.62f, 72.5f, 6.5f, P::LIGHT},
+      {"FM", 22.86f, 72.5f, 6.5f, P::LIGHT},
+      {morph, 38.1f, 72.5f, 6.5f, P::LIGHT},
+      {harmonics, 53.34f, 72.5f, 5.5f, P::LIGHT},
+      {"TRIG", 7.62f, 86.5f, 6.5f, P::LIGHT},
+      {"LEVEL", 22.86f, 86.5f, 6.5f, P::LIGHT},
+      {"V/OCT", 38.1f, 86.5f, 6.5f, P::LIGHT},
+      {"OUT", 42.55f, 106.6f, 7.f, P::DARK},
+      {"AUX", 54.0f, 106.6f, 7.f, P::DARK},
     };
     labels->lpg_mode = &lpg_mode;
     addChild(labels);
 
-    addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, 0)));
-    addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
+    // Top right and bottom left keep the keypad logo and the cord clear.
+    addChild(createWidget<ScrewSilver>(Vec(box.size.x - 2 * RACK_GRID_WIDTH, 0)));
+    addChild(createWidget<ScrewSilver>(Vec(RACK_GRID_WIDTH, RACK_GRID_HEIGHT - RACK_GRID_WIDTH)));
 
-    addParam(createParamCentered<RoundLargeBlackKnob>(mm2px(Vec(15.24, 31.0)), module, M::FREQ_PARAM));
-    addParam(createParamCentered<RoundLargeBlackKnob>(mm2px(Vec(45.72, 31.0)), module, M::HARMONICS_PARAM));
+    addParam(createParamCentered<RoundLargeBlackKnob>(mm2px(Vec(15.24, 31.5)), module, M::FREQ_PARAM));
+    addParam(createParamCentered<RoundLargeBlackKnob>(mm2px(Vec(45.72, 31.5)), module, M::HARMONICS_PARAM));
     addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(12.0, 50.0)), module, M::TIMBRE_PARAM));
     addParam(createParamCentered<Trimpot>(mm2px(Vec(30.48, 50.0)), module, M::MACRO_PARAM));
     addParam(createParamCentered<RoundBlackKnob>(mm2px(Vec(48.96, 50.0)), module, M::MORPH_PARAM));
     addParam(createParamCentered<Trimpot>(mm2px(Vec(10.16, 63.0)), module, M::TIMBRE_CV_PARAM));
     addParam(createParamCentered<Trimpot>(mm2px(Vec(30.48, 63.0)), module, M::FREQ_CV_PARAM));
     addParam(createParamCentered<Trimpot>(mm2px(Vec(50.8, 63.0)), module, M::MORPH_CV_PARAM));
-    ParamWidget* response = createParamCentered<Rogan1PSBlue>(mm2px(Vec(12.0, 50.0)), module, M::LPG_COLOUR_PARAM);
+    ParamWidget* response = createParamCentered<Rogan1PSWhite>(mm2px(Vec(12.0, 50.0)), module, M::LPG_COLOUR_PARAM);
     response->hide();
     addParam(response);
-    ParamWidget* decay = createParamCentered<Rogan1PSBlue>(mm2px(Vec(48.96, 50.0)), module, M::LPG_DECAY_PARAM);
+    ParamWidget* decay = createParamCentered<Rogan1PSWhite>(mm2px(Vec(48.96, 50.0)), module, M::LPG_DECAY_PARAM);
     decay->hide();
     addParam(decay);
 

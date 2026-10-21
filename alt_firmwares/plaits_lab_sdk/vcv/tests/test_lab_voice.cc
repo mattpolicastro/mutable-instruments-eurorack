@@ -155,7 +155,9 @@ int main() {
   if (phreak) {
     LabVoice voice;
     Controls key5 = controls;
-    key5.harmonics = 11.0f / 42.0f;
+    // v2: HARMONICS picks North America (first of seven systems), MORPH the key.
+    key5.harmonics = 0.5f / 7.0f;
+    key5.morph = 11.0f / 42.0f;
     key5.timbre = 0.0f;
     std::vector<float> aux;
     Run(&voice, key5, unpatched, 1.0f, &aux);
@@ -169,7 +171,7 @@ int main() {
     std::printf("      key 5 AUX: 770 Hz %.3f V, 1336 Hz %.3f V, strongest other %.4f V\n",
                 row, column, strongest_other);
     Check(row > 20.0f * strongest_other && column > 20.0f * strongest_other,
-          "Phreak: HARMONICS 11/42 plays key 5 (770 + 1336 Hz)");
+          "Phreak: North America, MORPH 11/42 plays key 5 (770 + 1336 Hz)");
   }
 
   std::printf("%s\n", failures ? "FAILED" : "all passed");
