@@ -79,15 +79,20 @@ void PhreakEngine::Render(const EngineParameters& parameters, float* out,
     patched_ = patched;
   }
   if (patched && (parameters.trigger & TRIGGER_RISING_EDGE)) {
+    // A keypress plays the entry from its first step.
     keypress_.Trigger();
+    voices_[active_voice_].SetTone(*active_entry_);
+    if (fade_sample_ < kCrossfadeSamples) {
+      voices_[1 - active_voice_].SetTone(*incoming_entry_);
+    }
   }
   const float requested_ratio = stmlib::SemitonesToRatio(parameters.note - 60.0f);
   float pitch_ratio = LimitPitchRatio(requested_ratio);
   bad_line_.SetTimbre(parameters.timbre);
   for (size_t i = 0; i < size; ++i) {
-    float sample = voices_[active_voice_].Next(patched, pitch_ratio);
+    float sample = voices_[active_voice_].Next(pitch_ratio);
     if (fade_sample_ < kCrossfadeSamples) {
-      const float incoming = voices_[1 - active_voice_].Next(patched, pitch_ratio);
+      const float incoming = voices_[1 - active_voice_].Next(pitch_ratio);
       const float weight = static_cast<float>(fade_sample_)
           / (kCrossfadeSamples - 1);
       sample = (1.0f - weight) * sample + weight * incoming;

@@ -19,7 +19,7 @@
     {
       "id": "harmonics",
       "label": "Tone system",
-      "description": "North American tones, then the blue box's R1 MF tones."
+      "description": "North America, UK, Europe, Japan, blue box, specials (red box, SIT, howler), then modem."
     },
     {
       "id": "timbre",
@@ -29,7 +29,7 @@
     {
       "id": "morph",
       "label": "Tone",
-      "description": "Selects a tone within the system, in equal zones with hysteresis and 0.005 s crossfades."
+      "description": "Selects an entry within the system, in equal zones with hysteresis and 0.005 s crossfades."
     },
     {
       "id": "macro",
