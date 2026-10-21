@@ -33,7 +33,7 @@ the engine interface as selection and articulation land.
 
 - [x] 5.1 Add `src/phreak_bad_line.h` with true bypass and the fixed 300–3400 Hz band-pass/mix stage. Add low/in/high-frequency attenuation and helper cutoff measurements plus bypass recovery and clean AUX assertions. Covers `phreak-bad-line/clean-endpoint-and-band-limitation/true-clean-endpoint`, `phreak-bad-line/clean-endpoint-and-band-limitation/telephone-band-pass`.
 - [x] 5.2 Add the middle-third soft saturation stage and mix/drive smoothing; test odd symmetry, harmonic growth, DC, bounded level and filter-before-drive ordering. Covers `phreak-bad-line/progressive-soft-saturation/saturation-after-filtering`.
-- [ ] 5.3 Add upper-third quantization/sample hold, then test the 5-bit grid, eight-sample endpoint, full sweep/return and AUX invariance at all stage checkpoints in continuous and triggered operation. Covers `phreak-bad-line/upper-range-digital-reduction/crushed-endpoint`, `phreak-bad-line/stable-treatment-sweep/ordered-sweep-and-recovery`, `phreak-pitch-outputs/clean-and-processed-routing/aux-independence`, `phreak-bad-line/clean-endpoint-and-band-limitation/true-clean-endpoint`.
+- [x] 5.3 Add upper-third quantization/sample hold, then test the 5-bit grid, eight-sample endpoint, full sweep/return and AUX invariance at all stage checkpoints in continuous and triggered operation. Covers `phreak-bad-line/upper-range-digital-reduction/crushed-endpoint`, `phreak-bad-line/stable-treatment-sweep/ordered-sweep-and-recovery`, `phreak-pitch-outputs/clean-and-processed-routing/aux-independence`, `phreak-bad-line/clean-endpoint-and-band-limitation/true-clean-endpoint`.
 
 ## 6. Scenarios and audition notes
 
