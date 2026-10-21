@@ -128,6 +128,30 @@ int main() {
     }
   }
 
+  {
+    // Plaits LPG mode: DECAY shapes every strike, whatever the engine does.
+    float tail[2];
+    for (int long_decay = 0; long_decay < 2; ++long_decay) {
+      LabVoice voice;
+      Controls lpg = controls;
+      lpg.plaits_lpg = true;
+      lpg.decay = long_decay ? 1.0f : 0.0f;
+      Inputs trig = unpatched;
+      trig.trigger_patched = true;
+      const std::vector<float> idle = Run(&voice, lpg, trig, 0.3f);
+      if (long_decay) Check(Rms(idle, 0.1f, 0.3f) < 0.01f, "Plaits LPG: TRIG patched and low is quiet");
+      trig.trigger = 5.0f;
+      std::vector<float> hit = Run(&voice, lpg, trig, 0.002f);
+      trig.trigger = 0.0f;
+      const std::vector<float> rest = Run(&voice, lpg, trig, 0.6f);
+      hit.insert(hit.end(), rest.begin(), rest.end());
+      if (long_decay) Check(Rms(hit, 0.0f, 0.05f) > 0.05f, "Plaits LPG: a TRIG pulse sounds");
+      tail[long_decay] = Rms(hit, 0.3f, 0.5f);
+    }
+    std::printf("      LPG tail 0.3-0.5 s: DECAY 0 %.4f V, DECAY 1 %.4f V\n", tail[0], tail[1]);
+    Check(tail[1] > 0.02f && tail[1] > 4.0f * tail[0], "Plaits LPG: DECAY lengthens the strike");
+  }
+
   if (phreak) {
     LabVoice voice;
     Controls key5 = controls;

@@ -11,6 +11,7 @@ module asks it instead of keeping its own list.
 """
 
 import importlib.util
+import json
 import shlex
 import sys
 from pathlib import Path
@@ -42,8 +43,16 @@ def main(argument: str) -> None:
         f"-DPLAITS_LAB_OUT_GAIN={float(post.get('outGain', 1.0))!r}f",
         f"-DPLAITS_LAB_AUX_GAIN={float(post.get('auxGain', 1.0))!r}f",
     ]
+    # The panel and tooltips use the package's own control names.
+    for control in manifest.get("controls", []):
+        key = control["id"].upper()
+        for suffix, field in (("LABEL", "label"), ("DESCRIPTION", "description")):
+            if control.get(field):
+                flags.append(f"-DPLAITS_LAB_{suffix}_{key}="
+                             + json.dumps(control[field], ensure_ascii=False))
     print("PLAITS_LAB_SOURCES := " + " ".join(str(Path(unit).resolve()) for unit in units))
-    print("PLAITS_LAB_FLAGS := " + " ".join(shlex.quote(flag) for flag in flags))
+    quoted = " ".join(shlex.quote(flag) for flag in flags)
+    print("PLAITS_LAB_FLAGS := " + quoted.replace("$", "$$").replace("#", "\\#"))
 
 
 if __name__ == "__main__":
