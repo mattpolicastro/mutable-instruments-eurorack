@@ -169,7 +169,11 @@ void LabVoice::Render(const Controls& c, const Inputs& in, float* out, float* au
   const float note = (modulation_note + s.previous_note) * 0.5f;
   s.previous_note = modulation_note;
 
-  if (in.trigger_patched) {
+  // In Plaits LPG mode a self-enveloping engine plays untriggered, so the
+  // LPG below is the only articulation.
+  const bool engine_hears_trigger =
+      !(c.plaits_lpg && PLAITS_LAB_ALREADY_ENVELOPED);
+  if (in.trigger_patched && engine_hears_trigger) {
     p.trigger = (rising_edge ? TRIGGER_RISING_EDGE : TRIGGER_LOW) |
         (s.trigger_state ? TRIGGER_HIGH : TRIGGER_LOW);
   } else {
@@ -226,6 +230,7 @@ void LabVoice::Render(const Controls& c, const Inputs& in, float* out, float* au
 
   bool already_enveloped = PLAITS_LAB_ALREADY_ENVELOPED;
   s.engine.Render(p, s.out_buffer, s.aux_buffer, kBlockSize, &already_enveloped);
+  if (c.plaits_lpg) already_enveloped = false;
 
   const bool lpg_bypass =
       already_enveloped || (!in.level_patched && !in.trigger_patched);

@@ -27,6 +27,9 @@ struct Controls {
   float morph_modulation_amount = 0.0f;
   float decay = 0.5f;  // LPG, for engines that do not envelope themselves
   float lpg_colour = 0.5f;
+  // For an engine that envelopes itself: run it untriggered and let Plaits'
+  // LPG articulate it on TRIG instead, so DECAY and COLOUR apply.
+  bool plaits_lpg = false;
 };
 
 // Jack voltages, and whether each jack is patched.

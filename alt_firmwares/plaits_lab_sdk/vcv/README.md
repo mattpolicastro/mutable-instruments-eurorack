@@ -42,7 +42,14 @@ mirrors `plaits/dsp/voice.cc`):
   as the engine sees them on hardware.
 - LEVEL sets accent, and drives the low-pass gate for engines that do not
   envelope themselves. COLOUR and DECAY are that gate's settings.
+- The **LPG** button (lit when on) is for engines that do envelope themselves,
+  like Phreak: the engine plays untriggered and Plaits' low-pass gate strikes
+  it on TRIG instead, so DECAY and COLOUR apply. Hardware cannot do this for
+  such an engine; it is an audition aid.
 - MACRO is the fourth synthesis macro, neutral at noon.
+
+The panel and tooltips use the package's own names for HARMONICS, TIMBRE,
+MORPH and MACRO, from its `plaits-engine.json`.
 
 Jack scaling follows VCV's Plaits port (Audible Instruments). Outputs are ±5 V.
 The engine renders 12-sample blocks at 48 kHz, which are resampled to Rack's
