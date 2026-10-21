@@ -40,10 +40,12 @@ class BadLine {
     low_pass_.set_f_q<stmlib::FREQUENCY_ACCURATE>(
         3400.0f / kSampleRate, 0.70710678f);
     mix_ = target_mix_ = mix_step_ = 0.0f;
+    // mutation-equivalent: 0 -> 1 adds only a zero-step, zero-target update; SetTimbre replaces the counter if the target changes.
     remaining_ = 0;
     saturation_mix_ = saturation_target_ = saturation_start_ = saturation_step_ = 0.0f;
     saturation_remaining_ = 0;
     reduction_mix_ = reduction_target_ = reduction_start_ = reduction_step_ = 0.0f;
+    // mutation-equivalent: 0 -> 1 snaps the already-zero mix to its zero target; SetTimbre replaces the counter if the target changes.
     reduction_remaining_ = 0;
     held_ = 0.0f;
     hold_remaining_ = 0;
@@ -138,6 +140,7 @@ class BadLine {
   }
 
  private:
+  // mutation-equivalent: 48 -> 49 changes only the comment; compiled timing still uses 240 samples.
   enum { kTransitionSamples = 240 };  // 5 ms at Plaits' 48 kHz sample rate.
   stmlib::Svf high_pass_;
   stmlib::Svf low_pass_;
