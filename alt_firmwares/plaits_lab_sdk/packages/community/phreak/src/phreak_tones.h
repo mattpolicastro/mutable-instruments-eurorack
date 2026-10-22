@@ -21,7 +21,7 @@ enum Signal {
   SIGNAL_DPSK,       // carrier hz[0], four-phase differential symbols at rate baud
   SIGNAL_QAM,        // carrier hz[0], random constellation points at rate baud
   SIGNAL_ANSAM,      // hz[0] with 15 Hz AM and a phase reversal every 450 ms
-  SIGNAL_MULTITONE,  // every multiple of hz[0] up to hz[1], except hz[2] and hz[3] multiples
+  SIGNAL_MULTITONE   // every multiple of hz[0] up to hz[1], except hz[2] and hz[3] multiples
 };
 
 struct Step {
@@ -487,7 +487,7 @@ class ToneVoice {
         const float phase = Advance(0, step.hz[0], pitch_ratio);
         float cosine_phase = phase + 0.25f;
         cosine_phase -= static_cast<int>(cosine_phase);
-        return 0.35f * (in_phase * Sine(cosine_phase) - quadrature * Sine(phase));
+        return 0.32f * (in_phase * Sine(cosine_phase) - quadrature * Sine(phase));
       }
       case SIGNAL_ANSAM: {
         // V.8 ANSam: 2100 Hz, 20% amplitude modulation at 15 Hz, and a phase
@@ -501,7 +501,7 @@ class ToneVoice {
         }
         float phase = Advance(0, step.hz[0], pitch_ratio) + (reversed_ ? 0.5f : 0.0f);
         phase -= static_cast<int>(phase);
-        return 0.45f * (1.0f + 0.2f * Sine(am_phase_)) * Sine(phase);
+        return 0.4f * (1.0f + 0.2f * Sine(am_phase_)) * Sine(phase);
       }
       case SIGNAL_MULTITONE: {
         // V.34 line probing: tones every 150 Hz to 3750 Hz, skipping 900,
@@ -517,7 +517,7 @@ class ToneVoice {
           phase -= static_cast<int>(phase);
           sum += Sine(phase);
         }
-        return 0.09f * sum;
+        return 0.05f * sum;  // the 21-tone sum peaks at about 8.8
       }
       default:
         return 0.0f;

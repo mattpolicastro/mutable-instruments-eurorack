@@ -1,223 +1,181 @@
 # Phreak
 
-A Plaits Lab community package (`community/phreak`, version `0.1.0`).
-North American dial, DTMF, busy, ringback and FSK tones with an original
-adjustable bad-line sound. FSK entries are individual tones, not a modem or
-protocol implementation; no other locale or Flurry distortion match is claimed.
+A Plaits Lab community package (`community/phreak`): telephone signalling as a
+voice. HARMONICS picks a tone system (North America, the UK, Europe, Japan, the
+blue box, specials and dial-up modems) and MORPH picks a sound within it. LINE
+adds an analog or digital bad line, and TWIST balances two-tone pairs.
 
-| SDK control | Panel control | v1 contract |
+| SDK control | Panel control | Function |
 | --- | --- | --- |
-| `harmonics` | HARMONICS | Select one of the 21 entries below, with hysteresis and 0.005 s crossfades. |
-| `timbre` | TIMBRE | MAIN only: clean at 0; 300–3400 Hz telephone band-pass at 1/3; soft saturation at 2/3; bit/sample-rate reduction toward 1. |
-| `morph` | MORPH | Has no effect in v1 throughout [0,1]. |
-| `macro` | Fourth control | Has no effect in v1 throughout [0,1], including its neutral midpoint. |
+| `harmonics` | HARMONICS | **Tone system**: seven equal zones, with hysteresis. |
+| `timbre` | TIMBRE | **Line**, MAIN only: clean at noon (with a ±0.02 dead zone). Counter-clockwise is an analog line: the 300–3400 Hz telephone band, then soft saturation. Clockwise is a digital line: the band, then bit and sample-rate reduction down to 5 bits. |
+| `morph` | MORPH | **Tone**: the entries of the selected system in equal zones, with hysteresis and 0.005 s crossfades. |
+| `macro` | Fourth control | **Twist**: the balance of a pair's low and high tones. Balanced at noon; one tone alone at either end, at the single-tone level. Single tones and the four-tone howler ignore it. |
 
-MIDI note 60 (C4) gives the authentic Hz below; FREQUENCY transposes every
-component by the same ratio. MAIN is processed by TIMBRE; AUX is untreated by
-TIMBRE. Both retain pitch, selection fades, unpatched cadence and patched LPG
-bursts. MAIN equals AUX at TIMBRE 0. These are two related mono outputs, not a
-true-stereo mode.
+MIDI note 60 (C4) plays the authentic frequencies below. FREQUENCY transposes
+every component by the same ratio, and the modem symbol rates (and the answer
+tone's AM and phase reversals) with it. Cadence and sequence timing do not
+change with pitch. MAIN is
+processed by LINE; AUX is the clean voice. They are two related mono outputs,
+not a stereo pair.
 
-Patched TRIG gives one 0.100 s LPG burst per rising edge, with silence between
-keypresses; gate length does not set duration. Unpatched TRIG sustains dial,
-DTMF and FSK, and runs busy/ringback cadence. Cadence starts on; both outputs
-share the timing below, independent of pitch.
+**Articulation.** With TRIG unpatched, every entry plays: continuous tones
+sustain, and cadences and sequences loop (a step of 0 s holds forever, as at the
+end of `connect`). With TRIG patched, Phreak is silent between keypresses; each
+rising edge restarts the entry from its first step and plays one 0.100 s burst
+through a matched low-pass gate on both outputs. Gate length does not set the
+duration. Phreak envelopes itself (`alreadyEnveloped`).
 
-| Index | Entry | SDK ID | HARMONICS centre | Hz at MIDI note 60 | Unpatched timing |
-| --- | --- | --- | --- | --- | --- |
-| 0 | Dial tone | `tone-dial` | 1/42 = 0.023809524 | 350 + 440 | Continuous |
-| 1 | Key 1 | `tone-key-1` | 3/42 = 0.071428571 | 697 + 1209 | Continuous |
-| 2 | Key 2 | `tone-key-2` | 5/42 = 0.119047619 | 697 + 1336 | Continuous |
-| 3 | Key 3 | `tone-key-3` | 7/42 = 0.166666667 | 697 + 1477 | Continuous |
-| 4 | Key 4 | `tone-key-4` | 9/42 = 0.214285714 | 770 + 1209 | Continuous |
-| 5 | Key 5 | `tone-key-5` | 11/42 = 0.261904762 | 770 + 1336 | Continuous |
-| 6 | Key 6 | `tone-key-6` | 13/42 = 0.309523810 | 770 + 1477 | Continuous |
-| 7 | Key 7 | `tone-key-7` | 15/42 = 0.357142857 | 852 + 1209 | Continuous |
-| 8 | Key 8 | `tone-key-8` | 17/42 = 0.404761905 | 852 + 1336 | Continuous |
-| 9 | Key 9 | `tone-key-9` | 19/42 = 0.452380952 | 852 + 1477 | Continuous |
-| 10 | Key 0 | `tone-key-0` | 21/42 = 0.500000000 | 941 + 1336 | Continuous |
-| 11 | Hash (#) | `tone-hash` | 23/42 = 0.547619048 | 941 + 1477 | Continuous |
-| 12 | Star (*) | `tone-star` | 25/42 = 0.595238095 | 941 + 1209 | Continuous |
-| 13 | Busy tone | `tone-busy` | 27/42 = 0.642857143 | 480 + 620 | 0.5 s on / 0.5 s off |
-| 14 | Ringback tone | `tone-ring` | 29/42 = 0.690476190 | 440 + 480 | 2 s on / 4 s off |
-| 15 | Key A | `tone-key-a` | 31/42 = 0.738095238 | 697 + 1633 | Continuous |
-| 16 | Key B | `tone-key-b` | 33/42 = 0.785714286 | 770 + 1633 | Continuous |
-| 17 | Key C | `tone-key-c` | 35/42 = 0.833333333 | 852 + 1633 | Continuous |
-| 18 | Key D | `tone-key-d` | 37/42 = 0.880952381 | 941 + 1633 | Continuous |
-| 19 | FSK space | `tone-fsk-0` | 39/42 = 0.928571429 | 2200 | Continuous |
-| 20 | FSK mark | `tone-fsk-1` | 41/42 = 0.976190476 | 1200 | Continuous |
+### Systems and entries
 
-Use [AUDITION.md](AUDITION.md) for saved-render commands, separate MAIN/AUX
-listening, numeric tolerances, observations and deferred qualification gates.
-See [VALIDATION.md](VALIDATION.md) for task 6.4 commands, host results and
-artifact checks.
+| HARMONICS | System | Entries |
+|---|---|---|
+| 0.000–0.143 (centre 0.071) | North America | 21 |
+| 0.143–0.286 (centre 0.214) | UK (BT) | 5 |
+| 0.286–0.429 (centre 0.357) | Europe (CEPT, 425 Hz) | 4 |
+| 0.429–0.571 (centre 0.500) | Japan (NTT) | 3 |
+| 0.571–0.714 (centre 0.643) | Blue box (Bell System R1 MF) | 13 |
+| 0.714–0.857 (centre 0.786) | Specials | 7 |
+| 0.857–1.000 (centre 0.929) | Modem | 12 |
 
-HARMONICS selects the 21-entry North American telephone tone table, using
-`min(20, floor(21 * H))` after clamping H to [0, 1] on the first render after
-Init or Reset. Each entry's centre is `(index + 0.5) / 21`. Once index `i` is
-selected, it stays until H reaches `(i + 1) / 21 + 0.002` upward or falls
-strictly below `i / 21 - 0.002` downward, where those neighbors exist.
-Crossing a threshold selects the current nominal zone directly, including
-large jumps. Selection changes use a 5 ms (240-sample) linear crossfade on
-both outputs. The outgoing voice keeps running while the incoming voice starts
-from zero phase; complementary weights include fully outgoing and fully incoming
-endpoints. During a fade only the latest accepted request is retained. The fade
-finishes before another starts, so rapid requests settle within 10 ms plus one
-control block, with at most two tone voices active. Reset clears both voices,
-the fade, pending selection, and hysteresis history.
+#### North America
 
-Both outputs render the selected reference-Hz sines: 0.25 per component for
-pairs, 0.5 for single-tone FSK. Dial, DTMF and FSK sustain continuously;
-busy runs 0.5 s on / 0.5 s off and ringback runs 2 s on / 4 s off. Each voice
-counts elapsed samples independently, starting on at selection or Reset.
-Onset and cadence edges use 1 ms linear ramps (48 sample intervals) inside the
-on intervals, with oscillators advancing through silence. The opening reaches
-unity at sample 48 and the closing reaches zero at the first off sample;
-neither ramp changes the scheduled cadence. The outgoing voice keeps its cadence
-during a selection fade. Frequency and cadence come from the tone descriptor;
-the sole production plan remains the 21-entry North American table.
+| MORPH centre | Entry | Sound at MIDI note 60 (Hz, seconds; steps loop) |
+|---|---|---|
+| 0.024 | `dial` | 350 + 440 |
+| 0.071 | `key-1` | 697 + 1209 |
+| 0.119 | `key-2` | 697 + 1336 |
+| 0.167 | `key-3` | 697 + 1477 |
+| 0.214 | `key-4` | 770 + 1209 |
+| 0.262 | `key-5` | 770 + 1336 |
+| 0.310 | `key-6` | 770 + 1477 |
+| 0.357 | `key-7` | 852 + 1209 |
+| 0.405 | `key-8` | 852 + 1336 |
+| 0.452 | `key-9` | 852 + 1477 |
+| 0.500 | `key-0` | 941 + 1336 |
+| 0.548 | `hash` | 941 + 1477 |
+| 0.595 | `star` | 941 + 1209 |
+| 0.643 | `busy` | 480 + 620 for 0.5 s; silence for 0.5 s |
+| 0.690 | `ring` | 440 + 480 for 2 s; silence for 4 s |
+| 0.738 | `key-a` | 697 + 1633 |
+| 0.786 | `key-b` | 770 + 1633 |
+| 0.833 | `key-c` | 852 + 1633 |
+| 0.881 | `key-d` | 941 + 1633 |
+| 0.929 | `fsk-space` | 2200 |
+| 0.976 | `fsk-mark` | 1200 |
 
-With TRIG patched, rising edges replace every entry's free-running cadence
-with a fixed 100 ms keypress, including busy and ringback. A shared contour
-opens over 1 ms, holds until 96 ms, and releases over the final 4 ms. Separate
-Plaits LowPassGate instances process MAIN and AUX with gain `e`, cutoff
-`0.003 + 0.3*e^4`, and zero HF bleed. A final linear taper over 96–100 ms
-removes filter residue; idle clears the LPGs. At TIMBRE 0 both channels match.
-Unpatched audio bypasses the LPGs. The engine always reports already-enveloped
-output, and the manifest declares that ownership with both output gains 1.0.
-Patched idle stays silent indefinitely. Gate length does not change the burst:
-only a rising edge restarts its 100 ms deadline, preserving oscillator phase
-and attacking from the current contour level. HARMONICS remains live through
-the usual 5 ms selection crossfade. Patching without an edge closes output
-immediately; unpatching restarts the selected entry's normal on phase. Both
-connection transitions discard the old burst and LPG history. Reset also clears
-that state, along with all voice, cadence and pending-selection state.
-MIDI note 60 reproduces the reference frequencies. Pitch applies one
-`SemitonesToRatio(note - 60)` multiplier to every active component: notes 48
-and 72 halve and double the frequencies without changing cadence or burst
-timing. At extreme high notes, one shared ratio ceiling keeps the highest
-component at 0.45 times the sample rate (21600 Hz at 48 kHz), preserving pair
-ratios. During crossfades the ceiling considers both voices and updates as soon
-as a voice retires or a queued fade begins, independently of render partitions.
-The cadence/crossfade signal splits into clean AUX and a separate MAIN path
-before the matched keypress LPGs. AUX is taken directly from that split, so
-MAIN treatment cannot feed into it. TIMBRE 0 is an exact bad-line bypass.
-From 0 to 1/3, TIMBRE linearly mixes in a fixed 300 Hz high-pass followed by
-a 3400 Hz low-pass, both second-order SVFs with Q approximately 0.707.
-Cutoffs do not transpose with pitch. Mix changes settle over 5 ms, including
-returning to exact bypass; Reset clears the mix and filter history.
-The filters use stmlib's algebraic frequency approximation. From 1/3 to 2/3,
-TIMBRE retains filtering and mixes in the odd soft curve
-`0.8*(d*x)/(1+abs(d*x))`, with wet amount `u=3*TIMBRE-1` and drive `d=1+7*u`.
-Saturation follows filtering. Its mix and drive ramp together over 5 ms from
-their current values, including changes during an unfinished ramp; repeated
-control blocks do not restart the transition. Reset clears this state too.
-At 1/3 saturation is bypassed; at 2/3 it is fully wet with drive 8 and a peak
-below 0.8. Above 2/3, TIMBRE mixes in signed quantization and sample holding
-after saturation, with wet amount `v=3*TIMBRE-2`, `12-floor(7*v)` bits and
-`1+floor(7*v)` samples per update. Quantization rounds symmetrically to the
-nearest multiple of `2/(2^bits-1)` and clips to [-1,1]. Resolution changes are
-discrete; the wet mix ramps over 5 ms. Changing hold length starts a new hold,
-and render-block boundaries do not reset its clock. At TIMBRE 1, MAIN uses the
-5-bit grid with eight-sample holds (6 kHz updates); at 2/3 reduction is bypassed.
-Reset clears all reduction history. Returning to 0 restores exact clean audio.
-MORPH and macro are deliberately unused across their full ranges.
+#### UK (BT)
 
-From your eurorack checkout:
+| MORPH centre | Entry | Sound at MIDI note 60 (Hz, seconds; steps loop) |
+|---|---|---|
+| 0.100 | `dial` | 350 + 450 |
+| 0.300 | `ring` | 400 + 450 for 0.4 s; silence for 0.2 s; 400 + 450 for 0.4 s; silence for 2 s |
+| 0.500 | `engaged` | 400 for 0.375 s; silence for 0.375 s |
+| 0.700 | `congestion` | 400 for 0.4 s; silence for 0.35 s; 400 for 0.225 s; silence for 0.525 s |
+| 0.900 | `unobtainable` | 400 |
+
+#### Europe (CEPT, 425 Hz)
+
+| MORPH centre | Entry | Sound at MIDI note 60 (Hz, seconds; steps loop) |
+|---|---|---|
+| 0.125 | `dial` | 425 |
+| 0.375 | `ring` | 425 for 1 s; silence for 4 s |
+| 0.625 | `busy` | 425 for 0.5 s; silence for 0.5 s |
+| 0.875 | `congestion` | 425 for 0.25 s; silence for 0.25 s |
+
+#### Japan (NTT)
+
+| MORPH centre | Entry | Sound at MIDI note 60 (Hz, seconds; steps loop) |
+|---|---|---|
+| 0.167 | `dial` | 400 |
+| 0.500 | `ring` | 392 + 408 for 1 s; silence for 2 s |
+| 0.833 | `busy` | 400 for 0.5 s; silence for 0.5 s |
+
+#### Blue box (Bell System R1 MF)
+
+| MORPH centre | Entry | Sound at MIDI note 60 (Hz, seconds; steps loop) |
+|---|---|---|
+| 0.038 | `seize` | 2600 |
+| 0.115 | `kp` | 1100 + 1700 |
+| 0.192 | `mf-1` | 700 + 900 |
+| 0.269 | `mf-2` | 700 + 1100 |
+| 0.346 | `mf-3` | 900 + 1100 |
+| 0.423 | `mf-4` | 700 + 1300 |
+| 0.500 | `mf-5` | 900 + 1300 |
+| 0.577 | `mf-6` | 1100 + 1300 |
+| 0.654 | `mf-7` | 700 + 1500 |
+| 0.731 | `mf-8` | 900 + 1500 |
+| 0.808 | `mf-9` | 1100 + 1500 |
+| 0.885 | `mf-0` | 1300 + 1500 |
+| 0.962 | `st` | 1500 + 1700 |
+
+#### Specials
+
+| MORPH centre | Entry | Sound at MIDI note 60 (Hz, seconds; steps loop) |
+|---|---|---|
+| 0.071 | `red-box-nickel` | 1700 + 2200 for 0.066 s; silence for 0.934 s |
+| 0.214 | `red-box-dime` | 1700 + 2200 for 0.066 s; silence for 0.066 s; 1700 + 2200 for 0.066 s; silence for 0.802 s |
+| 0.357 | `red-box-quarter` | 1700 + 2200 for 0.033 s; silence for 0.033 s; 1700 + 2200 for 0.033 s; silence for 0.033 s; 1700 + 2200 for 0.033 s; silence for 0.033 s; 1700 + 2200 for 0.033 s; silence for 0.033 s; 1700 + 2200 for 0.033 s; silence for 0.67 s |
+| 0.500 | `sit-intercept` | 913.8 for 0.274 s; 1370.6 for 0.274 s; 1776.7 for 0.38 s; silence for 2 s |
+| 0.643 | `sit-no-circuit` | 985.2 for 0.38 s; 1428.5 for 0.38 s; 1776.7 for 0.38 s; silence for 2 s |
+| 0.786 | `off-hook-howler` | 1400 + 2060 + 2450 + 2600 for 0.1 s; silence for 0.1 s |
+| 0.929 | `test-1004` | 1004 |
+
+#### Modem
+
+| MORPH centre | Entry | Sound at MIDI note 60 (Hz, seconds; steps loop) |
+|---|---|---|
+| 0.042 | `answer` | V.8 ANSam: 2100 Hz, 15 Hz AM at 20%, phase reversal every 0.45 s |
+| 0.125 | `bell-103-originate` | FSK mark 1270 / space 1070, 300 baud |
+| 0.208 | `bell-103-answer` | FSK mark 2225 / space 2025, 300 baud |
+| 0.292 | `v21-channel-1` | FSK mark 980 / space 1180, 300 baud |
+| 0.375 | `v21-channel-2` | FSK mark 1650 / space 1850, 300 baud |
+| 0.458 | `bell-202` | FSK mark 1200 / space 2200, 1200 baud |
+| 0.542 | `caller-id` | 440 + 480 for 2 s; silence for 0.5 s; FSK mark 1200 / space 2200, 1200 baud for 0.5 s; silence for 3 s |
+| 0.625 | `v22-originate` | 4-phase DPSK, 1200 Hz carrier, 600 baud |
+| 0.708 | `v22-answer` | 4-phase DPSK, 2400 Hz carrier, 600 baud |
+| 0.792 | `v34-probe` | tones every 150 Hz from 150 to 3750, except 900, 1200, 1800, 2400 |
+| 0.875 | `training` | QAM training, 1800 Hz carrier, 2400 baud |
+| 0.958 | `connect` | the full dial-up sequence: dial tone, 555-0123, ringback, answer tone, V.21 exchange, two line probes, DPSK, training, then silence (about 13.4 s) |
+
+### Accuracy
+
+Frequencies and cadences follow the published national and ITU-T values listed
+in `VALIDATION.md`. The modem entries carry random data, so they sound like the
+real signals without implementing any protocol. Japan's 16 Hz-modulated
+ringback is rendered as a 392 + 408 Hz beating pair.
+
+### Capability review (Fast FM, linear TZFM, hard sync)
+
+Proposed for the catalog review: decline **Fast FM** and **linear TZFM**, and
+use the **shared hard-sync fallback**. Telephone signals have no meaningful
+audio-rate or through-zero frequency modulation; a sign-reversed DTMF pair or
+modem carrier is not a telephone signal. Per-sample FM would also multiply the
+cost of the 21-tone line probe. Ordinary exponential FM through pitch, and
+V/OCT, transpose every entry as expected.
+
+### Cost
+
+On the host, Phreak costs about 0.1x a stock two-op FM engine overall. The
+V.34 line probe is the heaviest entry (about 0.74x two-op FM natively, about
+1.5x while crossfading into or out of it). The tables add about 3 KB of flash.
+Hardware is the authority: see `VALIDATION.md` for the QEMU estimate and the
+`--cpu-probe` build.
+
+### Development
 
 ```sh
 python3 alt_firmwares/plaits_lab_sdk/packages/community/phreak/tests/test_phreak.py
 python3 alt_firmwares/plaits_lab_sdk/plaits_lab.py check alt_firmwares/plaits_lab_sdk/packages/community/phreak --full
 ```
 
-The package tests check identity, SDK source/license policy, and compile every
-package translation unit with `-std=c++98 -pedantic-errors`. They also compile
-`tests/render_cases.cc` and render all 21 zone centres through the engine at
-48 kHz in 12-sample blocks. Independent frequency references, sine fitting and
-residual measurements check tuning, equal pair levels and unwanted components
-on AUX. Fresh renders check all 20 exact boundaries and clamped endpoints;
-stepped renders check every adjacent pair with 20 ms jitter/reversal dwells,
-exact hysteresis thresholds and adjacent floats, resets, and nonadjacent jumps.
-Crossfade tests compare both channels against complementary mixtures of
-separately rendered voices with a maximum float residual of 1e-6. Sample-timed
-requests cover adjacent changes, direct dial/FSK jumps, rapid requests and
-pending-target cancellation/reversal. Reset during either fade must match a
-fresh engine, including subsequent selection changes. These cases run with
-1-, 7-, 12- and 24-sample partitions to check sample-based timing.
-Cadence tests cover 3 s continuous renders, four complete busy cycles, two
-complete ring cycles, 1 ms edge ramps, phase continuity through silence, and
-selection/reset restarts at notes 48/72 with identical sample-timed events in
-every partition size, with spectral checks of the transposed tones. A test-only
-400+450 Hz descriptor with 0.25/0.75 s cadence exercises the unchanged helper
-without adding a production locale or control.
-Pitch tests fit both outputs against octave dial, transposed DTMF/FSK and
-fractional-note references, checking component levels and unexplained signal.
-Extreme-note tests cover key D's shared 21600 Hz ceiling, single FSK tones and
-low dial. A separate oscillator reference checks the common ceiling through
-queued crossfades and its release when the highest voice retires, at all four
-render partition sizes.
-Periodic burst tests render key 5 for 2 s and busy/ringback for 3 s at 2 Hz,
-checking both channels' frequencies, 100 ms durations, and silence below
--80 dBFS after 110 ms in 5 ms windows. An independent driver reference uses
-the shared LowPassGate primitive with literal contour times and frequencies;
-every float sample must match within 1e-6, including attack and closing cutoff.
-Routing tests compare MAIN and AUX within 1e-6 at TIMBRE 0 for all 21 entries,
-unpatched and with 2 Hz triggers, including cadence edges, LPG attack/release,
-and selection crossfades into every entry. Ringback runs through its reopening
-at 6 s. The manifest's unity gains and envelope ownership are also checked.
-At TIMBRE 0.5, separate 2 s MORPH and macro sweeps from 0 to 1 must match
-each corresponding baseline channel with both controls at 0.5, using identical
-initial state and trigger events in unpatched and 2 Hz triggered operation.
-The key-5 reference also runs across all four partition sizes. Every engine
-render in the driver must report already-enveloped output.
-Bad-line tests render FSK for 2 s at TIMBRE 0 from Reset and after TIMBRE 1,
-checking clean MAIN/AUX equality and total non-sine residual below -40 dBc.
-At TIMBRE 1/3, 150/1200/8800 Hz renders check stopband/passband attenuation,
-spectral purity and unchanged AUX. An independent helper sine sweep locates
-both -3 dB edges relative to the measured passband peak. Partial mixes, reset
-recovery and the 5 ms return to bypass are also checked across block sizes.
-Treated MAIN is checked against full scale, allowing filter-onset overshoot
-above the clean oscillator's 0.5 peak; AUX retains its clean bound.
-Saturation tests compare 2 s FSK mark renders at TIMBRE 1/3 and 2/3 for a
-retained 1200 Hz fundamental, at least 6 dB relative growth of the third
-harmonic, DC below 0.01, bounded level and identical clean AUX. Direct curve
-tests cover odd symmetry, monotonicity and the 0.8 bound. An independent
-filter-then-drive reference checks intermediate and full saturation within
-1e-6 and distinguishes the reversed stage order. Sample-timed transitions
-check mix/drive smoothing, mid-ramp retargets, exact filter-only recovery,
-reset and identical results across all four block sizes.
-Reduction tests check all eight resolutions and signed clipping, intermediate
-wet mixes, 5 ms ramps and interrupted transitions. Two-second FSK renders at
-TIMBRE 1 check the 5-bit grid, eight-sample holds, the filter/saturator source
-at each update and added spectral images, against the unreduced 2/3 setting.
-Key-5 renders at 0, 1/3, 2/3 and 1 compare AUX sample for sample in continuous
-and 2 Hz triggered operation, checking treatment differences and shared burst
-timing. A 6 s outward sweep and 6 s return followed by 100 ms at zero check
-finite bounded audio, ordered stages in both directions, unchanged AUX and
-clean recovery. The sweep also runs through the keypress LPGs; its unpatched
-stage windows are checked against independent mix/drive and grid calculations.
-The timeline driver accepts `trigger=low`, `trigger=high`, `trigger=rise`,
-`trigger=unpatched`, `note=MIDI`, and `timbre=VALUE` tokens alongside
-sample-timed selections and `reset`.
-Connection tests cover seven-second patched waits, 1 ms and 1 s gates, ringback
-patch/unpatch cadence restarts, and clearing a burst across cable changes.
-Retrigger tests compare every sample against an independent LPG/crossfade
-reference, including edges during attack, hold and release, and the key-1 to
-key-2 change at 70 ms after retriggering at 50 ms. Reset with an active burst,
-two voices and a queued selection must reproduce a fresh engine in each trigger
-state. These cases also run with 1-, 7-, 12- and 24-sample partitions.
-Set `CXX` to choose the compiler. Shared repository headers use a trailing enum comma and are
-included with `-isystem`; strict C++98 diagnostics apply to package source.
-The shared resource translation unit is compiled separately because it uses a
-zero-length array extension.
-The full SDK check renders all 37 declared scenarios with sanitizers,
-checks audio health and runs a host CPU smoke comparison. Both commands keep generated objects, binaries and WAVs in temporary
-directories and require no catalog registration.
+The tests compile the engine and `tests/render_cases.cc` with strict C++98
+diagnostics. They check every table entry against an independent reference,
+cadence and sequence timing, the modem signals, selection and crossfades, both
+sides of LINE, TWIST, articulation, pitch, extreme controls, block-size
+independence and the declared previews. Set `CXX` to choose the compiler.
+Generated objects, binaries and WAVs stay in temporary directories.
 
-The original package source is MIT licensed, copyright 2026 Matt Policastro;
-see `LICENSE` and the matching source notices. Shared Plaits/stmlib headers are
-included from the repository, with their upstream notices intact; no upstream
-DSP source is vendored here.
-
-Hardware builds, CPU/audio qualification, listening, submission and publication
-remain pending. Host smoke validation does not establish hardware performance.
+The package source is MIT-licensed, copyright 2026 Matt Policastro; see
+`LICENSE`. Shared Plaits and stmlib headers are included from the repository
+with their upstream notices; no upstream DSP source is vendored here.
