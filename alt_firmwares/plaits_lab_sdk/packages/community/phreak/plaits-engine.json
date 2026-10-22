@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "sdk": "plaits-engine-cpp-v1",
+  "packageType": "community",
+  "id": "community/phreak",
+  "catalogId": "phreak",
+  "version": "0.1.0",
+  "name": "Phreak",
+  "author": "Matt Policastro",
+  "origin": "Community",
+  "license": "MIT",
+  "description": "21 North American telephone tones with original bad-line treatment on MAIN and clean AUX. MIDI note 60 gives authentic Hz; pitch transposes every component by the same ratio. TRIG selects keypress bursts or unpatched cadence.",
+  "family": "Experimental",
+  "tags": [
+    "community",
+    "experimental"
+  ],
+  "controls": [
+    {
+      "id": "harmonics",
+      "label": "Tone system",
+      "description": "North America, UK, Europe, Japan, blue box, specials (red box, SIT, howler), then modem."
+    },
+    {
+      "id": "timbre",
+      "label": "Line",
+      "description": "Clean at noon. CCW: analog line, telephone band then saturation. CW: digital line, band then bit/rate crush."
+    },
+    {
+      "id": "morph",
+      "label": "Tone",
+      "description": "Selects an entry within the system, in equal zones with hysteresis and 0.005 s crossfades."
+    },
+    {
+      "id": "macro",
+      "label": "Twist",
+      "description": "Balance of a pair's low and high tones: balanced at noon, one tone alone at either end."
+    }
+  ],
+  "outputs": {
+    "main": "Selected tone processed by TIMBRE; retains pitch, selection fades, unpatched cadence and patched LPG bursts. Equals AUX at TIMBRE 0.",
+    "aux": "Selected tone untreated by TIMBRE; retains pitch, selection fades, unpatched cadence and patched LPG bursts."
+  },
+  "trigger": "Patched TRIG: each rising edge starts a 0.100 s LPG burst; idle is silent. Unpatched: dial/DTMF/FSK sustain; busy 0.5/0.5 s and ringback 2/4 s on/off cadence.",
+  "source": {
+    "root": "src",
+    "header": "phreak_engine.h",
+    "files": [
+      "phreak_engine.cc"
+    ],
+    "className": "PhreakEngine"
+  },
+  "postProcessing": {
+    "alreadyEnveloped": true,
+    "outGain": 1.0,
+    "auxGain": 1.0
+  },
+  "scenarios": "tests/scenarios.json"
+}

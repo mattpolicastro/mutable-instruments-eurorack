@@ -1,0 +1,802 @@
+[
+  {
+    "id": "na-dial",
+    "name": "North America: dial tone",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.071429,
+        0.071429
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.02381,
+        0.02381
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "na-key-5",
+    "name": "North America: key 5 (770 + 1336 Hz)",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.071429,
+        0.071429
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.261905,
+        0.261905
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "na-busy",
+    "name": "North America: busy, 0.5 s on / 0.5 s off",
+    "durationSeconds": 4,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.071429,
+        0.071429
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.642857,
+        0.642857
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "na-ringback",
+    "name": "North America: ringback, 2 s on / 4 s off",
+    "durationSeconds": 8,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.071429,
+        0.071429
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.690476,
+        0.690476
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "na-keypress",
+    "name": "North America: key 5 struck at 2 Hz (TRIG patched)",
+    "durationSeconds": 3,
+    "note": 60,
+    "triggerHz": 2,
+    "controls": {
+      "harmonics": [
+        0.071429,
+        0.071429
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.261905,
+        0.261905
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "na-sweep",
+    "name": "North America: MORPH through all 21 tones",
+    "durationSeconds": 21,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.071429,
+        0.071429
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.0,
+        1.0
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "uk-ring",
+    "name": "UK: double ring, 400 + 450 Hz",
+    "durationSeconds": 6,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.214286,
+        0.214286
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.3,
+        0.3
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "uk-engaged",
+    "name": "UK: engaged, 400 Hz",
+    "durationSeconds": 3,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.214286,
+        0.214286
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.5,
+        0.5
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "uk-congestion",
+    "name": "UK: congestion, 400 Hz",
+    "durationSeconds": 3,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.214286,
+        0.214286
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.7,
+        0.7
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "europe-ring",
+    "name": "Europe: ringback, 425 Hz 1 s / 4 s",
+    "durationSeconds": 10,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.357143,
+        0.357143
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.375,
+        0.375
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "europe-busy",
+    "name": "Europe: busy, 425 Hz",
+    "durationSeconds": 3,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.357143,
+        0.357143
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.625,
+        0.625
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "japan-ring",
+    "name": "Japan: 16 Hz-warbled ringback, 1 s / 2 s",
+    "durationSeconds": 6,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.5,
+        0.5
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.5,
+        0.5
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "blue-box-seize",
+    "name": "Blue box: 2600 Hz seize",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.642857,
+        0.642857
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.038462,
+        0.038462
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "blue-box-call",
+    "name": "Blue box: MORPH through seize, KP, digits and ST",
+    "durationSeconds": 13,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.642857,
+        0.642857
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.0,
+        1.0
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "red-box-quarter",
+    "name": "Red box: quarter, five 1700 + 2200 Hz beeps",
+    "durationSeconds": 3,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.785714,
+        0.785714
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.357143,
+        0.357143
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "sit-intercept",
+    "name": "Special information tone: intercept",
+    "durationSeconds": 6,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.785714,
+        0.785714
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.5,
+        0.5
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "off-hook-howler",
+    "name": "Off-hook howler: four tones, 0.1 s / 0.1 s",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.785714,
+        0.785714
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.785714,
+        0.785714
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "modem-answer",
+    "name": "Modem: V.8 answer tone (2100 Hz, 15 Hz AM, phase reversals)",
+    "durationSeconds": 3,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.928571,
+        0.928571
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.041667,
+        0.041667
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "modem-bell-103",
+    "name": "Modem: Bell 103 originate, 300 baud FSK",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.928571,
+        0.928571
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.125,
+        0.125
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "modem-v21",
+    "name": "Modem: V.21 channel 1, 300 bit/s FSK",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.928571,
+        0.928571
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.291667,
+        0.291667
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "modem-caller-id",
+    "name": "Modem: caller ID between rings (Bell 202 FSK)",
+    "durationSeconds": 6,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.928571,
+        0.928571
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.541667,
+        0.541667
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "modem-v22",
+    "name": "Modem: V.22 originate, 600 baud DPSK",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.928571,
+        0.928571
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.625,
+        0.625
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "modem-v34-probe",
+    "name": "Modem: V.34 line probe",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.928571,
+        0.928571
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.791667,
+        0.791667
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "modem-training",
+    "name": "Modem: training hiss",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.928571,
+        0.928571
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.875,
+        0.875
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "modem-connect",
+    "name": "Modem: a full dial-up connect",
+    "durationSeconds": 16,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.928571,
+        0.928571
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.958333,
+        0.958333
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "line-analog",
+    "name": "LINE fully counter-clockwise: band-pass and saturation",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.071429,
+        0.071429
+      ],
+      "timbre": [
+        0.0,
+        0.0
+      ],
+      "morph": [
+        0.261905,
+        0.261905
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "line-digital",
+    "name": "LINE fully clockwise: band-pass and bit/rate crush",
+    "durationSeconds": 2,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.071429,
+        0.071429
+      ],
+      "timbre": [
+        1.0,
+        1.0
+      ],
+      "morph": [
+        0.261905,
+        0.261905
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "line-sweep",
+    "name": "LINE from analog through clean to digital",
+    "durationSeconds": 8,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.071429,
+        0.071429
+      ],
+      "timbre": [
+        0.0,
+        1.0
+      ],
+      "morph": [
+        0.261905,
+        0.261905
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "twist-sweep",
+    "name": "TWIST from the low tone alone to the high tone alone",
+    "durationSeconds": 6,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.071429,
+        0.071429
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.261905,
+        0.261905
+      ],
+      "macro": [
+        0.0,
+        1.0
+      ]
+    }
+  },
+  {
+    "id": "system-sweep",
+    "name": "HARMONICS through all seven tone systems",
+    "durationSeconds": 14,
+    "note": 60,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.0,
+        1.0
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.5,
+        0.5
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "pitch-low",
+    "name": "Key 5 an octave down (note 48)",
+    "durationSeconds": 2,
+    "note": 48,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.071429,
+        0.071429
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.261905,
+        0.261905
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  },
+  {
+    "id": "pitch-high",
+    "name": "Key 5 an octave up (note 72)",
+    "durationSeconds": 2,
+    "note": 72,
+    "triggerHz": 0,
+    "controls": {
+      "harmonics": [
+        0.071429,
+        0.071429
+      ],
+      "timbre": [
+        0.5,
+        0.5
+      ],
+      "morph": [
+        0.261905,
+        0.261905
+      ],
+      "macro": [
+        0.5,
+        0.5
+      ]
+    }
+  }
+]
