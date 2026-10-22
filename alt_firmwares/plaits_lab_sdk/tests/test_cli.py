@@ -1002,6 +1002,46 @@ class PackageTests(unittest.TestCase):
         self.assertIn("event.preventDefault()", html)
         self.assertIn("void strikeLive()", html)
 
+    def test_live_plucked_strike_reports_trig_patched(self) -> None:
+        # Plucked is TRIG patched, as on hardware and in render_model.cc: a drum
+        # stays silent until struck instead of free-running as if unpatched.
+        try:
+            compiler = plaits_lab.compiler_path(None)
+        except plaits_lab.PackageError:
+            self.skipTest("no host C++ compiler")
+        package = plaits_lab.builtin_package("snare")
+        driver = (
+            '#include <cmath>\n#include <cstdio>\n'
+            'extern "C" { void init(); void set_env_mode(int); void trigger();'
+            ' void render(int); float* main_out(); }\n'
+            'static double rms(int blocks) { double s = 0; for (int b = 0; b < blocks; ++b) {'
+            ' render(128); for (int i = 0; i < 128; ++i) s += main_out()[i] * main_out()[i]; }'
+            ' return std::sqrt(s / (blocks * 128)); }\n'
+            'int main() { init(); set_env_mode(1); double before = rms(112);'
+            ' trigger(); std::printf("%f %f\\n", before, rms(37)); }\n'
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "driver.cc"
+            source.write_text(driver, encoding="utf-8")
+            binary = Path(directory) / ("driver" + plaits_lab.HOST_EXE_SUFFIX)
+            manifest = package["manifest"]
+            command = [
+                compiler, "-std=c++11", "-O1", "-DTEST", plaits_lab.MATH_CONSTANTS_DEFINE,
+                f'-DPLAITS_LAB_ENGINE_HEADER="{plaits_lab.engine_header_define(package)}"',
+                f"-DPLAITS_LAB_ENGINE_CLASS=plaits::{manifest['source']['className']}",
+                "-I", str(package["repo_root"]), "-I", str(package["source_root"]),
+                str(source),
+                *plaits_lab.engine_translation_units(
+                    package, plaits_lab.SDK_DIR / "wasm_audition.cc"),
+                "-o", str(binary),
+            ]
+            plaits_lab.subprocess.run(command, check=True, capture_output=True)
+            result = plaits_lab.subprocess.run(
+                [str(binary)], check=True, capture_output=True, text=True)
+        before, after = (float(value) for value in result.stdout.split())
+        self.assertLess(before, 1e-4)
+        self.assertGreater(after, 0.01)
+
     def test_live_audition_stereo_surface_is_wired(self) -> None:
         # The audition must be able to drive parameters.stereo and read back
         # stereo_capable(), so a contributor can hear a stereo engine's L/R render.
@@ -1017,12 +1057,28 @@ class PackageTests(unittest.TestCase):
         html = (plaits_lab.SDK_DIR / "dev_editor.html").read_text(encoding="utf-8")
         self.assertIn("monitor-stereo-opt", html)
 
+    def test_wasm_compiler_prefers_em_plus_plus(self) -> None:
+        # em++ is looked up on PATH (Windows emsdk ships em++.bat), with emcc
+        # as the fallback for a toolchain that somehow lacks it.
+        found: dict[str, str] = {}
+        real_which = plaits_lab.shutil.which
+        plaits_lab.shutil.which = found.get
+        try:
+            self.assertIsNone(plaits_lab.wasm_compiler_path())
+            found["emcc"] = "/emsdk/emcc"
+            self.assertEqual(plaits_lab.wasm_compiler_path(), "/emsdk/emcc")
+            found["em++"] = "C:\\emsdk\\em++.bat"
+            self.assertEqual(plaits_lab.wasm_compiler_path(), "C:\\emsdk\\em++.bat")
+        finally:
+            plaits_lab.shutil.which = real_which
+
     def test_compile_wasm_without_emcc_reports_clearly(self) -> None:
         # Live audition is OPTIONAL: with no emcc on PATH the wasm build must fail
         # with a clear, actionable error rather than a raw traceback.
         package = plaits_lab.builtin_package("chords")
         real_which = plaits_lab.shutil.which
-        plaits_lab.shutil.which = lambda name: None if name == "emcc" else real_which(name)
+        plaits_lab.shutil.which = (
+            lambda name: None if name in ("emcc", "em++") else real_which(name))
         try:
             self.assertIsNone(plaits_lab.wasm_compiler_path())
             with self.assertRaises(plaits_lab.PackageError) as ctx:
