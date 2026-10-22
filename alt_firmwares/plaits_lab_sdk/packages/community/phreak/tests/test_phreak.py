@@ -492,6 +492,24 @@ class PhreakTests(unittest.TestCase):
                 self.assertGreater(min(amplitudes), 0.24)
                 self.assertLess(residual, 0.01)
 
+    def test_probe_table_is_current_and_transposes(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        import make_probe_table
+        self.assertEqual(make_probe_table.header(),
+                         (PACKAGE / "src" / "phreak_probe_table.h").read_text(encoding="utf-8"))
+        modem = dict(dict(REFERENCE)["modem"])
+        self.assertEqual(make_probe_table.PROBE, modem["v34-probe"][0][2])
+
+        # Off the table's grid, interpolation must still give 21 clean tones.
+        ratio = 2 ** (7 / 12)
+        _, aux = self.entry("modem", "v34-probe", 0.2, "n=67")
+        amplitudes, residual = sine_fit(window(aux, 0.1, 0.13),
+                                        [150 * k * ratio for k in make_probe_table.multiples()])
+        self.assertEqual(len(amplitudes), 21)
+        self.assertGreater(min(amplitudes), 0.045)
+        self.assertLess(max(amplitudes), 0.055)
+        self.assertLess(residual, 0.003)
+
     def test_every_entry_survives_extreme_controls(self):
         for system, entries in REFERENCE:
             for label, _ in entries:

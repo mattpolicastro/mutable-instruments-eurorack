@@ -162,17 +162,17 @@ Deliberate simplifications:
 Proposed for the catalog review: decline **Fast FM** and **linear TZFM**, and
 use the **shared hard-sync fallback**. Telephone signals have no meaningful
 audio-rate or through-zero frequency modulation; a sign-reversed DTMF pair or
-modem carrier is not a telephone signal. Per-sample FM would also multiply the
-cost of the 21-tone line probe. Ordinary exponential FM through pitch, and
-V/OCT, transpose every entry as expected.
+modem carrier is not a telephone signal. Ordinary exponential FM through pitch,
+and V/OCT, transpose every entry as expected.
 
 ### Cost
 
-On the host, Phreak costs about 0.1x a stock two-op FM engine overall. The
-V.34 line probe is the heaviest entry (about 0.74x two-op FM natively, about
-1.5x while crossfading into or out of it). The tables add about 3 KB of flash.
-Hardware is the authority: see `VALIDATION.md` for the QEMU estimate and the
-`--cpu-probe` build.
+The QEMU estimate puts Phreak at about 47% of the hardware CPU budget at
+worst (likely 41–61%), with LINE fully analog the heaviest setting. The V.34
+probe plays one generated cycle rather than 21 sines, which took it from about
+twice the budget to about a third. Phreak takes 15,368 bytes of flash: about
+9 KB of code and 6 KB of tables and entry labels. Hardware is the authority:
+see `VALIDATION.md` for the estimate and the `--cpu-probe` build.
 
 ### Development
 
@@ -187,6 +187,11 @@ cadence and sequence timing, the modem signals, selection and crossfades, both
 sides of LINE, TWIST, articulation, pitch, extreme controls, block-size
 independence and the declared previews. Set `CXX` to choose the compiler.
 Generated objects, binaries and WAVs stay in temporary directories.
+
+`src/phreak_probe_table.h` is generated: one cycle of the V.34 probe, which
+plays all 21 tones for the cost of one lookup. After changing the probe, run
+`python3 tests/make_probe_table.py` from the package directory; a test fails
+while the header is stale.
 
 The package source is MIT-licensed, copyright 2026 Matt Policastro; see
 `LICENSE`. Shared Plaits and stmlib headers are included from the repository

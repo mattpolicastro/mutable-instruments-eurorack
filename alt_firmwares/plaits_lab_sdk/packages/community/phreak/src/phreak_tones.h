@@ -10,6 +10,7 @@
 #include "plaits/dsp/dsp.h"
 #include "plaits/dsp/oscillator/sine_oscillator.h"
 #include "phreak_articulation.h"
+#include "phreak_probe_table.h"
 
 namespace plaits {
 namespace phreak {
@@ -21,7 +22,7 @@ enum Signal {
   SIGNAL_DPSK,       // carrier hz[0], four-phase differential symbols at rate baud
   SIGNAL_QAM,        // carrier hz[0], random constellation points at rate baud
   SIGNAL_ANSAM,      // hz[0] with 15 Hz AM and a phase reversal every 450 ms
-  SIGNAL_MULTITONE   // every multiple of hz[0] up to hz[1], except hz[2] and hz[3] multiples
+  SIGNAL_MULTITONE   // the V.34 probe at base hz[0]; phreak_probe_table.h holds the rest
 };
 
 struct Step {
@@ -505,19 +506,13 @@ class ToneVoice {
       }
       case SIGNAL_MULTITONE: {
         // V.34 line probing: tones every 150 Hz to 3750 Hz, skipping 900,
-        // 1200, 1800 and 2400 Hz. Fixed per-tone phases keep the crest down.
-        const float base = Advance(0, step.hz[0], pitch_ratio);
-        float sum = 0.0f;
-        const int top = static_cast<int>(step.hz[1] / step.hz[0] + 0.5f);
-        for (int k = 1; k <= top; ++k) {
-          const float hz = k * step.hz[0];
-          if (hz == step.hz[2] || hz == step.hz[3]
-              || hz == 2.0f * step.hz[2] || hz == 2.0f * step.hz[3]) continue;
-          float phase = k * base + 0.37f * k * k;
-          phase -= static_cast<int>(phase);
-          sum += Sine(phase);
-        }
-        return 0.05f * sum;  // the 21-tone sum peaks at about 8.8
+        // 1200, 1800 and 2400 Hz. Every tone is a multiple of the base, so one
+        // generated cycle, indexed by the base phase, plays all 21.
+        const float position = Advance(0, step.hz[0], pitch_ratio) * kProbeTableSize;
+        const size_t index = static_cast<size_t>(position);
+        const float a = kProbeTable[index];
+        const float b = kProbeTable[index + 1];
+        return kProbeScale * (a + (b - a) * (position - index));
       }
       default:
         return 0.0f;

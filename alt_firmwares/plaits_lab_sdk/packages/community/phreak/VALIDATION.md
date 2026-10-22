@@ -1,120 +1,96 @@
-# Phreak host validation — task 6.4
+# Phreak v2 validation
 
-Run date: 2026-10-21. Scope: the completed `community/phreak` package.
-Local environment: macOS arm64, Python 3.14.6, Apple clang 21.0.0
-(`clang-2100.0.123.102`). Commands below run from the repository root.
-Local results are contributor evidence; the acceptance harness reruns its own
-checks independently.
+Run date: 2026-10-21. macOS arm64, Python 3.14.6, Apple clang 21.0.0.
+Commands run from the repository root. These are contributor evidence; the
+catalog review reruns its own checks.
 
-## Package commands and results
+## Host gates
 
 ```sh
-mkdir -p build/phreak-validation
 python3 -B alt_firmwares/plaits_lab_sdk/packages/community/phreak/tests/test_phreak.py
 python3 -B alt_firmwares/plaits_lab_sdk/plaits_lab.py check \
   alt_firmwares/plaits_lab_sdk/packages/community/phreak --full
-c++ -std=c++98 -pedantic-errors -DTEST -D_USE_MATH_DEFINES \
-  -isystem . -I alt_firmwares/plaits_lab_sdk/packages/community/phreak/src \
-  -c alt_firmwares/plaits_lab_sdk/packages/community/phreak/src/phreak_engine.cc \
-  -o build/phreak-validation/phreak_engine.o
+c++ -std=c++98 -pedantic-errors -DTEST -D_USE_MATH_DEFINES -isystem . \
+  -I alt_firmwares/plaits_lab_sdk/packages/community/phreak/src \
+  -c alt_firmwares/plaits_lab_sdk/packages/community/phreak/src/phreak_engine.cc -o /tmp/phreak_engine.o
 ```
 
 | Gate | Result |
 | --- | --- |
-| Complete package regression suite | PASS, exit 0: 61 tests in 76.815 s on the final rerun; no failures or skips. |
-| SDK `check --full` | PASS, exit 0: metadata, source/license policy, host compilation, ASan/UBSan, all 37 declared scenarios, audio health and host CPU smoke check. |
-| Explicit C++98 translation-unit compile | PASS, exit 0; object output confined to ignored `build/phreak-validation/`. |
-| Focused `tests/test_phreak.py PackageTests` rerun | PASS, exit 0: 4 tests, including full-check cleanup and licensing/portability. |
+| Package tests | PASS: 22 tests in 4.2 s. |
+| SDK `check --full` | PASS: metadata, source and licence policy, host compile, ASan/UBSan, all 32 declared previews (peak 0.438–0.638, RMS 0.106–0.367, absolute DC at most 0.00017), audio health. |
+| Host CPU smoke | 13.1 ns/sample against 94.3 for stock two-op FM: about 0.1x. |
+| Strict C++98 compile | PASS (`-pedantic-errors`, `-Wall -Werror` in the test build). |
 
-The full SDK run reported peaks 0.4965–0.6451, RMS 0.1072–0.4615 and
-absolute DC no greater than 0.00020 across the 37 scenarios (including
-`smoke`). The SDK renderer rejects non-finite float samples before PCM
-conversion. Host CPU smoke measurement: 12.7 ns/sample versus 92.1 ns/sample
-for stock two-op FM, reported as 0.1x. This is a host smoke measurement only.
+Native cost by signal, per sample, against stock two-op FM (host only):
 
-Traceable regression coverage:
+| Signal | ns/sample | vs two-op FM |
+| --- | --- | --- |
+| Two-tone entry (key 5) | about 16–35 | about 0.2–0.4x |
+| Four-tone howler, ANSam, FSK, DPSK, QAM | about 15–20 | about 0.16–0.21x |
+| V.34 line probe (21 tones) | about 15 | about 0.16x (was about 71 before the table; see below) |
 
-- `phreak-package/repeatable-full-validation-and-listening-notes/host-acceptance-run`:
-  `PackageTests.test_full_host_acceptance` invokes the actual SDK `--full`
-  command, requires a result for every declared scenario plus sanitizer and
-  CPU smoke results, checks SDK temporary-directory cleanup, and compares
-  package file hashes before/after. Direct-driver patched-idle, jitter/stepped
-  selection, and retrigger tests also carry this scenario ID; existing spectral,
-  timing, routing and transition assertions remain intact.
-- `phreak-package/sdk-compatible-licensing-and-source/licensing-and-portability-gate`:
-  `PackageTests.test_licensing_and_portability` checks full MIT text, manifest
-  license, 2026 Matt Policastro notices and matching SPDX tags on all shipped
-  C++ files, including the host driver. It invokes unchanged SDK source/include
-  policy, rejects unqualified/C libm transcendental calls and BufferAllocator
-  allocations in production source, and explicitly compiles every manifest
-  translation unit with `-std=c++98 -pedantic-errors` into a temporary directory.
-
-Production source review confirms fixed member storage: two tone voices with
-two phase/increment slots each, bounded pending selection/counters, two LPG
-instances and filter/reduction state. `Init` ignores the allocator. Oscillation
-and pitch use shared `Sine` and `SemitonesToRatio` helpers; no upstream code was
-vendored and no production DSP changes were needed for this task.
-
-The strict compile treats repository headers as system dependencies because
-they contain a trailing enum comma extension. Package code retains strict
-C++98 diagnostics. The direct-driver build separately compiles shared
-`plaits/resources.cc`, whose zero-length array is an existing extension; this
-does not relax the package translation-unit gate.
-
-Initial validation found one failure in the newly added cleanup test: macOS
-`xcrun` leaves its `xcrun_db` tool-discovery cache under the requested TMPDIR.
-The test now checks that SDK-owned `plaits-lab-*` directories are removed and
-then verifies removal of the enclosing temporary directory, which also deletes
-the cache. No pre-existing test was weakened, deleted or skipped.
-
-## Repository host suite — operator result
-
-The operator supplied this result in task feedback because Docker is
-unavailable in the agent sandbox, and instructed the agent not to run Docker.
-It is recorded as operator evidence, not as an agent-executed run.
-
-- Tree: candidate `93fd369`, plus `stm_audio_bootloader` at pinned `b376bd6`.
-- Image: `mutable-eurorack-dev:local`, built from `.devcontainer/Dockerfile`
-  per AGENTS.md for `linux/amd64`.
-- Date/result: 2026-10-21, **PASS**, exit 0, ending
-  `Synthesis engine tests passed.`
+## ARM and CPU estimate
 
 ```sh
-docker run --rm --platform linux/amd64 \
-  -v <tree>:/workspace -w /workspace \
-  mutable-eurorack-dev:local \
-  bash -lc 'make -f plaits/test/makefile -j2 && ./plaits_test'
+python3 -B alt_firmwares/plaits_lab_sdk/plaits_lab.py check \
+  alt_firmwares/plaits_lab_sdk/packages/community/phreak --full --arm
+python3 -B alt_firmwares/plaits_lab_sdk/qemu/estimate.py \
+  alt_firmwares/plaits_lab_sdk/packages/community/phreak --sweep
+python3 -B alt_firmwares/plaits_lab_sdk/qemu/estimate.py \
+  alt_firmwares/plaits_lab_sdk/packages/community/phreak \
+  --harmonics 0.929 --morph 0.79 --timbre 0   # the V.34 probe
+python3 -B alt_firmwares/plaits_lab_sdk/plaits_lab.py build \
+  alt_firmwares/plaits_lab_sdk/packages/community/phreak --hardware --output /tmp/phreak.wav
 ```
 
-Operator caveat: under QEMU AMD64 emulation on Apple Silicon, GCC 11 hit three
-random internal compiler errors (segfaults). The unchanged base `fe3a718`
-crashes the same way; `make` was rerun incrementally until compilation completed.
-The host suite does not compile community packages. This task changes nothing
-under `plaits/`, `stmlib/` or `stm_audio_bootloader/`; the separate package checks
-above exercise Phreak itself.
+| Gate | Result |
+| --- | --- |
+| ARM compile (`check --arm`) | PASS. Model size 15,368 bytes of flash: 9,092 code, 6,276 tables, labels and vtable. |
+| Local hardware firmware | Links at 44,772 of 229,376 bytes with Phreak alone; v1 links at 34,340, so v2 costs about 10.4 KB more. |
+| QEMU sweep (19 positions) | 47% of the CPU budget (likely 41–61%), worst at LINE fully analog: 245.9 instructions/sample; 1.30x spread. |
+| V.34 probe, measured directly | 35% (31–45%) at LINE fully analog; 31% at noon. |
+| Other modem signals, measured directly | 35–48% across ANSam, Bell 103/202, caller ID, V.22, training and `connect`, at LINE fully analog, noon and fully digital. |
 
-## Artifact hygiene and deferred work
+The sweep alone was not enough. Its positions never land on the probe entry
+(`modem`, MORPH 0.79), which, summing 21 sines per sample, measured 1,129
+instructions/sample: about 217% of the budget (188–279%). The probe now plays
+one generated cycle (`src/phreak_probe_table.h`, 1 KB). Every probe tone is a
+multiple of the 150 Hz base, so the cycle, indexed by the base phase, is the
+same sum at any pitch. The 512-point int16 table with linear interpolation
+stays at least 47 dB below the signal; a test fits all 21 tones at a
+transposed pitch. The change also cut the model from 19,584 bytes to 15,368.
 
-Test binaries, float sample files and scenario WAVs use temporary directories;
-local command logs and the explicit compile object use ignored
-`build/phreak-validation/`. Artifact audit commands:
+Not covered by a static estimate: crossfades. While MORPH or HARMONICS moves,
+two entries render for the 5 ms fade, so the hardware check should sweep
+MORPH across the modem entries with the CPU meter on.
 
-```sh
-git ls-files -- alt_firmwares/plaits_lab_sdk/packages/community/phreak
-git status --short --untracked-files=all
-git check-ignore build/phreak-validation/phreak_engine.o \
-  build/phreak-validation/package-tests-final.log
-git diff --check
-```
+Tooling note: the committed `qemu/cycles_plugin.so` targets QEMU plugin API 6,
+and Homebrew's QEMU 11.1.2 requires API 7. These runs used a local rebuild
+with two callback signatures updated (`vcpu_tb_trans(tb, userdata)` and
+`plugin_exit(userdata)`); the SDK's files were left unchanged.
 
-PASS: all 12 already-tracked package files are source, tests, metadata or
-documentation; no generated artifacts are tracked in the package. Status
-shows only the intended package test/documentation edits and new
-`VALIDATION.md`; `check-ignore` confirms the object/log paths are ignored.
-The diff whitespace check passes. The full-check test independently verifies
-that rendering does not add or modify package files.
+## Hardware
 
-ARM compilation, experimental and stock firmware builds, physical Tall Dog
-clone CPU/audio checks, Palette submission and publication remain deferred per
-the brief. Host validation does not establish hardware approval. Actual
-listening remains pending as recorded in [AUDITION.md](AUDITION.md).
+_Pending, by hand on a Tall Dog Plaits clone: a `build --hardware --cpu-probe`
+firmware, with LINE fully analog, the `connect` sequence and MORPH sweeps
+across the modem entries as the worst cases, and the listening checklist in
+`AUDITION.md`._
+
+## Sources
+
+Checked on 2026-10-21 against primary documents:
+
+| Values | Source |
+| --- | --- |
+| UK dial (350 + 440), ringing, engaged, congestion, unobtainable | BT SIN 350 Issue 1.5, Table 1 |
+| Europe 425 Hz dial, ringing 1/4, busy 0.5/0.5, congestion 0.25/0.25 | ETSI ES 201 970 V1.1.1, cl. 13.3, Table 6 |
+| Japan 400 Hz dial, ringback (400 Hz modulated at 15–20 Hz, 1/2), busy 0.5/0.5 | NTT West analog interface specification v6.2, Table 3.3.8 |
+| 2600 Hz; R1 MF digits, KP and ST | ITU-T Q.311 §2.1; ITU-T Q.320 |
+| Coin tones, SIT (intercept and no-circuit, local), off-hook howler, caller ID timing, 1004 Hz | Bellcore SR-2275 Issue 3 §6.14.3.3, §6.17.3.4.3, §6.20.4, §6.21.2.1, p. 8-15 |
+| V.8 ANSam | ITU-T V.8 (11/2000) §7.2 |
+| V.21 channels; V.22 carriers and rate | ITU-T V.21 §3; ITU-T V.22 §2.1–2.2 |
+| V.34 line probes and training rates | ITU-T V.34 (02/98) §10.1.2.4, §5.2–5.3 |
+| Bell 103 and Bell 202 | TDK 73K302L datasheet |
+
+Deliberate simplifications are listed in `README.md` under Accuracy.
