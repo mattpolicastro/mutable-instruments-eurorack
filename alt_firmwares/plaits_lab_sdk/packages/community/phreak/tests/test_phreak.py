@@ -65,7 +65,7 @@ REFERENCE = [
         ("fsk-space", [tones(0, 2200)]), ("fsk-mark", [tones(0, 1200)]),
     ]),
     ("united-kingdom", [
-        ("dial", [tones(0, 350, 450)]),
+        ("dial", [tones(0, 350, 440)]),
         ("ring", [tones(0.4, 400, 450), off(0.2), tones(0.4, 400, 450), off(2.0)]),
         ("engaged", [tones(0.375, 400), off(0.375)]),
         ("congestion", [tones(0.4, 400), off(0.35), tones(0.225, 400), off(0.525)]),
@@ -109,19 +109,19 @@ REFERENCE = [
         ("v21-channel-1", [fsk(0, 980, 1180, 300)]),
         ("v21-channel-2", [fsk(0, 1650, 1850, 300)]),
         ("bell-202", [fsk(0, 1200, 2200, 1200)]),
-        ("caller-id", [tones(2.0, 440, 480), off(0.5), fsk(0.5, 1200, 2200, 1200), off(3.0)]),
+        ("caller-id", [tones(2.0, 440, 480), off(0.5), fsk(0.6, 1200, 2200, 1200), off(2.9)]),
         ("v22-originate", [(0, DPSK, (1200,), 600)]),
         ("v22-answer", [(0, DPSK, (2400,), 600)]),
         ("v34-probe", [(0, PROBE, (150, 3750, 900, 1200), 0)]),
-        ("training", [(0, QAM, (1800,), 2400)]),
+        ("training", [(0, QAM, (1920,), 3200)]),
         ("connect", [tones(1.0, 350, 440), off(0.3)]
             + digit(770, 1336) * 3 + digit(941, 1336) + digit(697, 1209)
             + digit(697, 1336) + digit(697, 1477)
             + [off(1.2), tones(2.0, 440, 480), off(0.6), (2.4, ANSAM, (2100,), 15),
                fsk(0.45, 980, 1180, 300), fsk(0.45, 1650, 1850, 300), off(0.1),
-               (0.3, PROBE, (150, 3750, 900, 1200), 0), off(0.05),
-               (0.3, PROBE, (150, 3750, 900, 1200), 0), off(0.1),
-               (0.4, DPSK, (1200,), 600), (2.6, QAM, (1800,), 2400), off(0)]),
+               (0.16, PROBE, (150, 3750, 900, 1200), 0), off(0.05),
+               (0.55, PROBE, (150, 3750, 900, 1200), 0), off(0.1),
+               (0.4, DPSK, (1200,), 600), (2.6, QAM, (1920,), 3200), off(0)]),
     ]),
 ]
 
@@ -349,27 +349,27 @@ class PhreakTests(unittest.TestCase):
                     self.assertGreater(amplitude, 0.04)
 
         _, aux = self.entry("modem", "training", 1.0)
-        for hz in (1200, 1800, 2400):
+        for hz in (900, 1920, 3000):  # 3200 baud spreads about 1920 Hz
             self.assertGreater(band(aux, hz), 0.02)
-        self.assertLess(band(aux, 4000), 0.5 * band(aux, 1800))
+        self.assertLess(band(aux, 4500), 0.5 * band(aux, 1920))
 
     def test_caller_id_between_rings(self):
         _, aux = self.entry("modem", "caller-id", 6.0)
         self.assertGreater(rms(window(aux, 0.1, 1.9)), 0.2)
         self.assertLess(rms(window(aux, 2.05, 2.45)), 1e-5)
-        burst = window(aux, 2.55, 2.95)
+        burst = window(aux, 2.55, 3.05)
         # 1200 baud spreads each tone's energy over more bit transitions.
         self.assertGreater(band(burst, 1200), 0.05)
         self.assertGreater(band(burst, 2200), 0.05)
-        self.assertLess(rms(window(aux, 3.05, 5.95)), 1e-5)
+        self.assertLess(rms(window(aux, 3.15, 5.95)), 1e-5)
 
     def test_connect_plays_through_then_mutes(self):
         _, aux = self.entry("modem", "connect", 15.0)
         self.assertGreater(rms(window(aux, 0.1, 0.9)), 0.2)            # dial tone
         self.assertGreater(band(window(aux, 4.0, 5.5), 440), 0.1)       # ringback
         self.assertGreater(band(window(aux, 6.4, 8.4), 2100), 0.3)      # answer
-        self.assertGreater(band(window(aux, 10.9, 13.2), 1800), 0.02)   # training
-        self.assertLess(rms(window(aux, 13.5, 15.0)), 1e-5)             # muted
+        self.assertGreater(band(window(aux, 11.0, 13.3), 1920), 0.02)   # training
+        self.assertLess(rms(window(aux, 13.6, 15.0)), 1e-5)             # muted
 
     # --- selection ----------------------------------------------------------
 

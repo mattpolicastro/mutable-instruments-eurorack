@@ -95,7 +95,7 @@ const ToneEntry kNorthAmericanEntries[] = {
 
 // --- United Kingdom (BT) ---------------------------------------------------
 
-const Step kUkDial[] = { PHREAK_T2(0.0f, 350.0f, 450.0f) };
+const Step kUkDial[] = { PHREAK_T2(0.0f, 350.0f, 440.0f) };  // BT SIN 350 Table 1
 const Step kUkRing[] = {
   PHREAK_T2(0.4f, 400.0f, 450.0f), PHREAK_OFF(0.2f),
   PHREAK_T2(0.4f, 400.0f, 450.0f), PHREAK_OFF(2.0f)
@@ -208,12 +208,12 @@ const Step kV21Ch2[] = { PHREAK_FSK(0.0f, 1650.0f, 1850.0f, 300.0f) };
 const Step kBell202[] = { PHREAK_FSK(0.0f, 1200.0f, 2200.0f, 1200.0f) };
 const Step kCallerId[] = {
   PHREAK_T2(2.0f, 440.0f, 480.0f), PHREAK_OFF(0.5f),
-  PHREAK_FSK(0.5f, 1200.0f, 2200.0f, 1200.0f), PHREAK_OFF(3.0f)
+  PHREAK_FSK(0.6f, 1200.0f, 2200.0f, 1200.0f), PHREAK_OFF(2.9f)
 };
 const Step kV22Orig[] = { PHREAK_DPSK(0.0f, 1200.0f, 600.0f) };
 const Step kV22Ans[] = { PHREAK_DPSK(0.0f, 2400.0f, 600.0f) };
 const Step kV34Probe[] = { PHREAK_PROBE(0.0f) };
-const Step kTraining[] = { PHREAK_QAM(0.0f, 1800.0f, 2400.0f) };
+const Step kTraining[] = { PHREAK_QAM(0.0f, 1920.0f, 3200.0f) };
 // Dial-up connect: dial tone, 555-0123, ringback, answer, V.8 exchange, line
 // probing, training, then the speaker mutes.
 #define PHREAK_DIGIT(a, b) PHREAK_T2(0.09f, a, b), PHREAK_OFF(0.07f)
@@ -227,9 +227,9 @@ const Step kConnect[] = {
   PHREAK_ANSAM(2.4f),
   PHREAK_FSK(0.45f, 980.0f, 1180.0f, 300.0f),
   PHREAK_FSK(0.45f, 1650.0f, 1850.0f, 300.0f), PHREAK_OFF(0.1f),
-  PHREAK_PROBE(0.3f), PHREAK_OFF(0.05f), PHREAK_PROBE(0.3f), PHREAK_OFF(0.1f),
+  PHREAK_PROBE(0.16f), PHREAK_OFF(0.05f), PHREAK_PROBE(0.55f), PHREAK_OFF(0.1f),
   PHREAK_DPSK(0.4f, 1200.0f, 600.0f),
-  PHREAK_QAM(2.6f, 1800.0f, 2400.0f),
+  PHREAK_QAM(2.6f, 1920.0f, 3200.0f),
   PHREAK_OFF(0.0f)
 };
 

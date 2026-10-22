@@ -68,7 +68,7 @@ duration. Phreak envelopes itself (`alreadyEnveloped`).
 
 | MORPH centre | Entry | Sound at MIDI note 60 (Hz, seconds; steps loop) |
 |---|---|---|
-| 0.100 | `dial` | 350 + 450 |
+| 0.100 | `dial` | 350 + 440 |
 | 0.300 | `ring` | 400 + 450 for 0.4 s; silence for 0.2 s; 400 + 450 for 0.4 s; silence for 2 s |
 | 0.500 | `engaged` | 400 for 0.375 s; silence for 0.375 s |
 | 0.700 | `congestion` | 400 for 0.4 s; silence for 0.35 s; 400 for 0.225 s; silence for 0.525 s |
@@ -131,19 +131,31 @@ duration. Phreak envelopes itself (`alreadyEnveloped`).
 | 0.292 | `v21-channel-1` | FSK mark 980 / space 1180, 300 baud |
 | 0.375 | `v21-channel-2` | FSK mark 1650 / space 1850, 300 baud |
 | 0.458 | `bell-202` | FSK mark 1200 / space 2200, 1200 baud |
-| 0.542 | `caller-id` | 440 + 480 for 2 s; silence for 0.5 s; FSK mark 1200 / space 2200, 1200 baud for 0.5 s; silence for 3 s |
+| 0.542 | `caller-id` | 440 + 480 for 2 s; silence for 0.5 s; FSK mark 1200 / space 2200, 1200 baud for 0.6 s; silence for 2.9 s |
 | 0.625 | `v22-originate` | 4-phase DPSK, 1200 Hz carrier, 600 baud |
 | 0.708 | `v22-answer` | 4-phase DPSK, 2400 Hz carrier, 600 baud |
 | 0.792 | `v34-probe` | tones every 150 Hz from 150 to 3750, except 900, 1200, 1800, 2400 |
-| 0.875 | `training` | QAM training, 1800 Hz carrier, 2400 baud |
-| 0.958 | `connect` | the full dial-up sequence: dial tone, 555-0123, ringback, answer tone, V.21 exchange, two line probes, DPSK, training, then silence (about 13.4 s) |
+| 0.875 | `training` | QAM training, 1920 Hz carrier, 3200 baud |
+| 0.958 | `connect` | the full dial-up sequence: dial tone, 555-0123, ringback, answer tone, V.21 exchange, the V.34 L1 and L2 line probes, DPSK, training, then silence (about 13.5 s) |
 
 ### Accuracy
 
-Frequencies and cadences follow the published national and ITU-T values listed
-in `VALIDATION.md`. The modem entries carry random data, so they sound like the
-real signals without implementing any protocol. Japan's 16 Hz-modulated
-ringback is rendered as a 392 + 408 Hz beating pair.
+Values were checked against primary sources on 2026-10-21: BT SIN 350 (UK),
+ETSI ES 201 970 (Europe), NTT's analog interface specification (Japan), ITU-T
+Q.311/Q.320 (2600 Hz and R1 MF), Bellcore SR-2275 (coin tones, SIT, howler,
+caller ID, the 1004 Hz test tone), and ITU-T V.8, V.21, V.22 and V.34, with
+Bell 103/202 from modem datasheets. `VALIDATION.md` lists them.
+
+Deliberate simplifications:
+- The modem entries carry random data. They sound like the real signals
+  without implementing a protocol, including caller ID's lead-in.
+- Japan's ringback (400 Hz modulated at 15-20 Hz) is a 392 + 408 Hz beating
+  pair: the right 16 Hz flutter, but no 400 Hz carrier.
+- Levels are uniform within an entry, so UK congestion's louder short burst and
+  V.34's louder L1 probe are not reproduced.
+- The training hiss uses one valid V.34 setting, 3200 baud on 1920 Hz; real
+  modems chose among eleven rate and carrier pairs.
+- `test-1004` is the North American test tone (ITU-T O.6 recommends 1020 Hz).
 
 ### Capability review (Fast FM, linear TZFM, hard sync)
 
