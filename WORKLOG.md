@@ -22,3 +22,13 @@
 - Non-Mac VCV builds need the Rack cross toolchain.
 - The SDK's committed `qemu/cycles_plugin.so` is plugin API 6; Homebrew QEMU 11.1.2 needs 7. A local rebuild needs two callback signatures changed (`vcpu_tb_trans(tb, userdata)`, `plugin_exit(userdata)`); not raised with Lyle (Matt's call).
 - Revisit Phreak's tables and other CPU/flash wins before `submit` (leads in Claude memory `phreak-perf-followups`): label strings only tests read, 28-byte `Step` rows, duplicated voice code, the analog line as the CPU worst case.
+
+## 2026-10-22
+
+**What:** Lyle asked for the VCV test bench as a PR for attribution; opened lylepmills/eurorack#53. Project pinned (on hold) while Matt experiments with the Phreak VCV build on his friend's feedback.
+
+**Decisions:** None beyond the PR.
+
+**Next:**
+- Feature and sound ideas from VCV play go into the themed build: the `plaits-telephone-v2proto` worktree, local branch `phreak-v2-proto` (not pushed). Port package changes to `telephone` when resuming.
+- On resuming: table/CPU/flash follow-ups, listening, `--cpu-probe` on the Tall Dog, then `submit`. Watch #53 for Lyle's tweaks.
